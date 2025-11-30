@@ -9,7 +9,12 @@ ob_start();
     <div>
         <h6 class="text-muted mb-0">Kelola keluhan masuk</h6>
     </div>
-    <a href="?page=keluhan-create" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Keluhan</a>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#exportModal">
+            <i class="bi bi-download me-1"></i> Export
+        </button>
+        <a href="?page=keluhan-create" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Keluhan</a>
+    </div>
 </div>
 
 <div class="card border-0 mb-3">
@@ -82,10 +87,31 @@ ob_start();
         <?php if (!empty($_GET['info'])): ?>
             <div class="alert alert-success"><?= htmlspecialchars($_GET['info']) ?></div>
         <?php endif; ?>
+        <form class="mb-3" method="post" action="?page=keluhan" id="bulk-form">
+            <input type="hidden" name="action" value="bulk-status">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label mb-0">Status Baru (bulk)</label>
+                    <select class="form-select" name="status_baru">
+                        <?php foreach ($statusList as $opt): ?>
+                            <option value="<?= htmlspecialchars($opt) ?>"><?= htmlspecialchars($opt) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label mb-0">Catatan</label>
+                    <input type="text" name="catatan" class="form-control" placeholder="Catatan wajib diisi saat bulk update">
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button class="btn btn-outline-danger flex-fill" type="submit">Update Status Terpilih</button>
+                </div>
+            </div>
+        </form>
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle mb-0">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" id="check-all"></th>
                         <?php
                         $buildSort = function ($key) use ($sort, $dir, $filters) {
                             $nextDir = ($sort === $key && $dir === 'asc') ? 'desc' : 'asc';
@@ -107,6 +133,7 @@ ob_start();
                 <tbody>
                     <?php foreach ($complaints as $row): ?>
                         <tr>
+                            <td><input type="checkbox" name="ids[]" form="bulk-form-placeholder" value="<?= (int)$row['id'] ?>" class="row-check"></td>
                             <td><?= htmlspecialchars($row['tanggal_lapor']) ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($row['kode_keluhan']) ?></td>
                             <td><?= htmlspecialchars(($row['nama_pelanggan'] ?? '-') . ' / ' . ($row['no_hp'] ?? '-')) ?></td>
@@ -184,6 +211,38 @@ ob_start();
         </form>
     </div>
 </div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="get" action="?page=keluhan">
+            <?php foreach ($filters as $k => $v): ?>
+                <input type="hidden" name="<?= htmlspecialchars($k) ?>" value="<?= htmlspecialchars($v) ?>">
+            <?php endforeach; ?>
+            <input type="hidden" name="page" value="keluhan">
+            <input type="hidden" name="export" value="csv">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Keluhan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Export data keluhan sesuai filter saat ini.</p>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" name="export_type" value="csv" id="expCsv" checked>
+                    <label class="form-check-label" for="expCsv">CSV</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="export_type" value="excel" id="expXlsx">
+                    <label class="form-check-label" for="expXlsx">Excel (.xlsx)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" class="btn btn-danger">Export</button>
+            </div>
+        </form>
+    </div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var modal = document.getElementById('quickStatusModal');
@@ -196,6 +255,44 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.querySelector('#qs-kode').textContent = kode ? '(' + kode + ')' : '';
     });
 });
+
+// Bulk checkbox handling
+(function() {
+    const checkAll = document.getElementById('check-all');
+    const rowChecks = document.querySelectorAll('.row-check');
+    const bulkForm = document.getElementById('bulk-form');
+
+    const sync = () => {
+        if (!checkAll) return;
+        const boxes = Array.from(document.querySelectorAll('.row-check'));
+        if (boxes.length === 0) return;
+        const allChecked = boxes.every((c) => c.checked);
+        checkAll.checked = allChecked;
+    };
+
+    if (checkAll) {
+        checkAll.addEventListener('change', () => {
+            const boxes = document.querySelectorAll('.row-check');
+            boxes.forEach((c) => { c.checked = checkAll.checked; });
+        });
+    }
+    rowChecks.forEach((c) => c.addEventListener('change', sync));
+
+    // Submit handler to ensure selected IDs stay in the bulk form
+    if (bulkForm) {
+        bulkForm.addEventListener('submit', () => {
+            // Remove existing hidden ids
+            bulkForm.querySelectorAll('input[name="ids[]"]').forEach((el) => el.remove());
+            document.querySelectorAll('.row-check:checked').forEach((c) => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'ids[]';
+                hidden.value = c.value;
+                bulkForm.appendChild(hidden);
+            });
+        });
+    }
+})();
 </script>
 <?php
 $content = ob_get_clean();

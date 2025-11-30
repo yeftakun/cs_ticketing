@@ -287,6 +287,58 @@ switch ($page) {
             }
         }
 
+        // Bulk action update status
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk-status') {
+            $ids = $_POST['ids'] ?? [];
+            $statusBaru = $_POST['status_baru'] ?? '';
+            $catatan = trim($_POST['catatan'] ?? '');
+            $idsInt = array_values(array_filter(array_map('intval', $ids)));
+            if (!empty($idsInt) && in_array($statusBaru, $statusList, true) && $catatan !== '') {
+                try {
+                    $db->beginTransaction();
+                    $now = date('Y-m-d H:i:s');
+                    $inPlaceholders = implode(',', array_fill(0, count($idsInt), '?'));
+                    // Insert log per keluhan
+                    $insLog = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
+                    foreach ($idsInt as $keluhanId) {
+                        $insLog->execute([
+                            ':keluhan_id' => $keluhanId,
+                            ':status' => $statusBaru,
+                            ':catatan' => $catatan,
+                            ':tgl' => $now,
+                            ':user_id' => $currentUser['id'],
+                        ]);
+                    }
+                    $selesai = in_array($statusBaru, ['Solved', 'Closed'], true) ? $now : null;
+                    $upd = $db->prepare("
+                        UPDATE keluhan
+                        SET status_keluhan = :status,
+                            tanggal_update_terakhir = :tgl,
+                            tanggal_selesai = :selesai,
+                            updated_by = :user_id
+                        WHERE id IN ({$inPlaceholders})
+                    ");
+                    $bindIndex = 1;
+                    $upd->bindValue(':status', $statusBaru);
+                    $upd->bindValue(':tgl', $now);
+                    $upd->bindValue(':selesai', $selesai);
+                    $upd->bindValue(':user_id', $currentUser['id']);
+                    foreach ($idsInt as $keluhanId) {
+                        $upd->bindValue($bindIndex, $keluhanId, PDO::PARAM_INT);
+                        $bindIndex++;
+                    }
+                    $upd->execute();
+                    $db->commit();
+                    redirect('?page=keluhan&info=Bulk%20status%20berhasil%20diperbarui');
+                } catch (PDOException $e) {
+                    $db->rollBack();
+                    $error = 'Gagal bulk update status.';
+                }
+            } else {
+                $error = 'Pilih tiket dan isi status + catatan.';
+            }
+        }
+
         $filters = [
             'q' => trim($_GET['q'] ?? ''),
             'kategori' => $_GET['kategori'] ?? '',
