@@ -83,6 +83,25 @@ if (!$loggedIn) {
     redirect('?page=login');
 }
 
+// AJAX cek pelanggan
+if (($_GET['ajax'] ?? '') === 'cek_pelanggan') {
+    header('Content-Type: application/json');
+    $noHp = trim($_GET['no_hp'] ?? '');
+    if ($noHp === '') {
+        echo json_encode(['ok' => false, 'message' => 'No HP wajib diisi']);
+        exit;
+    }
+    $stmt = $db->prepare("SELECT id, nama_pelanggan, no_hp, kota FROM pelanggan WHERE no_hp = :hp LIMIT 1");
+    $stmt->execute([':hp' => $noHp]);
+    $pelanggan = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($pelanggan) {
+        echo json_encode(['ok' => true, 'data' => $pelanggan]);
+    } else {
+        echo json_encode(['ok' => false, 'message' => 'Pelanggan tidak ditemukan']);
+    }
+    exit;
+}
+
 // Data umum
 $statusList = ['Open', 'On Progress', 'Pending', 'Solved', 'Closed'];
 $prioritasList = ['Low', 'Medium', 'High', 'Critical'];

@@ -21,16 +21,18 @@ ob_start();
             <div class="col-md-6">
                 <label class="form-label">No HP</label>
                 <div class="input-group">
-                    <input type="text" name="no_hp" class="form-control" placeholder="08xx xxxx xxxx" value="<?= htmlspecialchars($_POST['no_hp'] ?? '') ?>" required>
+                    <input type="text" name="no_hp" id="no_hp" class="form-control" placeholder="08xx xxxx xxxx" value="<?= htmlspecialchars($_POST['no_hp'] ?? '') ?>" required>
+                    <button class="btn btn-outline-secondary" type="button" id="cek-pelanggan">Cek Pelanggan</button>
                 </div>
+                <div class="form-text text-muted" id="cek-status"></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Nama Pelanggan</label>
-                <input type="text" name="nama" class="form-control" placeholder="Nama pelanggan" value="<?= htmlspecialchars($_POST['nama'] ?? '') ?>">
+                <input type="text" name="nama" id="nama" class="form-control" placeholder="Nama pelanggan" value="<?= htmlspecialchars($_POST['nama'] ?? '') ?>">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Kota</label>
-                <input type="text" name="kota" class="form-control" placeholder="Kota domisili" value="<?= htmlspecialchars($_POST['kota'] ?? '') ?>">
+                <input type="text" name="kota" id="kota" class="form-control" placeholder="Kota domisili" value="<?= htmlspecialchars($_POST['kota'] ?? '') ?>">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Kategori Keluhan</label>
@@ -68,6 +70,43 @@ ob_start();
         </form>
     </div>
 </div>
+<script>
+(function() {
+    const btn = document.getElementById('cek-pelanggan');
+    if (!btn) return;
+    const status = document.getElementById('cek-status');
+    const noHpInput = document.getElementById('no_hp');
+    const namaInput = document.getElementById('nama');
+    const kotaInput = document.getElementById('kota');
+
+    const setStatus = (msg, isError = false) => {
+        if (!status) return;
+        status.textContent = msg;
+        status.className = 'form-text ' + (isError ? 'text-danger' : 'text-success');
+    };
+
+    btn.addEventListener('click', () => {
+        const hp = (noHpInput?.value || '').trim();
+        if (!hp) {
+            setStatus('Isi No HP terlebih dahulu', true);
+            return;
+        }
+        setStatus('Mencari...', false);
+        fetch(`?ajax=cek_pelanggan&no_hp=${encodeURIComponent(hp)}`, { headers: { 'Accept': 'application/json' } })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res.ok && res.data) {
+                    namaInput.value = res.data.nama_pelanggan || '';
+                    kotaInput.value = res.data.kota || '';
+                    setStatus('Data ditemukan dan terisi otomatis.');
+                } else {
+                    setStatus(res.message || 'Pelanggan tidak ditemukan.', true);
+                }
+            })
+            .catch(() => setStatus('Gagal cek pelanggan.', true));
+    });
+})();
+</script>
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/../layouts/main.php';
