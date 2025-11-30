@@ -62,12 +62,12 @@ ob_start();
 </div>
 
 <div class="card mt-3">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="card-title mb-0">Timeline Penanganan Keluhan</h6>
-            <span class="badge bg-light text-dark"><?= count($timeline) ?> log</span>
-        </div>
-        <div class="timeline">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="card-title mb-0">Timeline Penanganan Keluhan</h6>
+                    <span class="badge bg-light text-dark"><?= count($timeline) ?> log</span>
+                </div>
+            <div class="timeline">
             <?php foreach ($timeline as $log): ?>
                 <div class="timeline-item">
                     <div class="d-flex align-items-center gap-2 mb-1">
@@ -76,6 +76,13 @@ ob_start();
                         <span class="text-muted small">oleh <?= htmlspecialchars($log['user_nama'] ?? '-') ?></span>
                     </div>
                     <div class="text-muted"><?= htmlspecialchars($log['catatan']) ?></div>
+                    <?php if (!empty($log['attachments'])): ?>
+                        <div class="mt-1">
+                            <?php foreach ($log['attachments'] as $att): ?>
+                                <a class="small me-2" href="<?= htmlspecialchars($att['url']) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($att['name']) ?></a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
             <?php if (empty($timeline)): ?>
@@ -88,7 +95,7 @@ ob_start();
             <?php if (!empty($error)): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
-            <form class="row g-3" method="post" action="?page=keluhan-show&id=<?= (int)$keluhan['id'] ?>">
+            <form class="row g-3" method="post" action="?page=keluhan-show&id=<?= (int)$keluhan['id'] ?>" enctype="multipart/form-data">
                 <div class="col-md-3">
                     <label for="status_baru" class="form-label">Status Baru</label>
                     <select class="form-select" id="status_baru" name="status_baru">
@@ -100,6 +107,11 @@ ob_start();
                 <div class="col-md-9">
                     <label class="form-label">Catatan</label>
                     <textarea class="form-control" name="catatan" rows="2" placeholder="Catatan singkat progres..."><?= htmlspecialchars($_POST['catatan'] ?? '') ?></textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Lampiran (opsional, bisa beberapa file)</label>
+                    <input type="file" name="lampiran[]" class="form-control" multiple>
+                    <div class="form-text">Maksimal sesuai konfigurasi PHP upload, file akan disimpan per log.</div>
                 </div>
                 <div class="col-12 d-flex gap-2">
                     <button class="btn btn-danger" type="submit">Simpan</button>
