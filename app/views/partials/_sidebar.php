@@ -15,21 +15,21 @@ $isActive = function (string $menu) use ($activeMenu): string {
         </button>
     </div>
     <div class="sidebar-menu">
-        <a class="nav-link <?= $isActive('dashboard') ?>" href="#">
+        <a class="nav-link <?= $isActive('dashboard') ?>" href="?page=dashboard">
             <i class="bi bi-grid-fill"></i> Dashboard
         </a>
-        <a class="nav-link <?= $isActive('keluhan') ?>" href="#">
+        <a class="nav-link <?= $isActive('keluhan') ?>" href="?page=keluhan">
             <i class="bi bi-chat-dots-fill"></i> Keluhan
         </a>
-        <a class="nav-link <?= $isActive('pelanggan') ?>" href="#">
+        <a class="nav-link <?= $isActive('pelanggan') ?>" href="?page=pelanggan">
             <i class="bi bi-people-fill"></i> Pelanggan
         </a>
 
         <div class="section-title mt-3">Admin</div>
-        <a class="nav-link sub-link <?= $isActive('users') ?>" href="#">
+        <a class="nav-link sub-link <?= $isActive('users') ?>" href="?page=admin-users">
             <i class="bi bi-person-gear"></i> User Management
         </a>
-        <a class="nav-link sub-link <?= $isActive('kategori') ?>" href="#">
+        <a class="nav-link sub-link <?= $isActive('kategori') ?>" href="?page=admin-kategori">
             <i class="bi bi-tags-fill"></i> Kategori Keluhan
         </a>
     </div>

@@ -26,7 +26,7 @@ $initials = strtoupper(substr($currentUser['name'], 0, 1) . substr(strstr($curre
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="#">Profil</a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="#">Logout</a></li>
+                    <li><a class="dropdown-item text-danger" href="?page=logout">Logout</a></li>
                 </ul>
             </div>
         </div>

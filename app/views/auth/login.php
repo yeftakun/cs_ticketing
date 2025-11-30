@@ -11,14 +11,19 @@ ob_start();
         <div class="text-muted small">Login Agent / Supervisor</div>
     </div>
     <div class="card-body p-0">
-        <form>
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-danger mb-3" role="alert">
+                <?= htmlspecialchars($error) ?>
+            </div>
+        <?php endif; ?>
+        <form method="post" action="?page=login">
             <div class="mb-3">
                 <label class="form-label">Username</label>
-                <input type="text" class="form-control" placeholder="Masukkan username">
+                <input type="text" name="username" class="form-control" placeholder="Masukkan username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required>
             </div>
             <div class="mb-3">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-control" placeholder="Masukkan password">
+                <input type="password" name="password" class="form-control" placeholder="Masukkan password" required>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="form-check">
@@ -28,12 +33,9 @@ ob_start();
                 <a href="#" class="small text-decoration-none">Lupa password?</a>
             </div>
             <div class="d-grid">
-                <button class="btn btn-danger btn-lg" type="button">Login</button>
+                <button class="btn btn-danger btn-lg" type="submit">Login</button>
             </div>
         </form>
-        <div class="alert alert-danger mt-3 mb-0 d-none" role="alert">
-            Username atau password salah.
-        </div>
     </div>
 </div>
 <?php
