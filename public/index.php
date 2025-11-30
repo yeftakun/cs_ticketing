@@ -90,35 +90,97 @@ $channelList = ['Call Center', 'Grapari', 'WhatsApp', 'Aplikasi', 'Live Chat', '
 
 switch ($page) {
     case 'dashboard':
-        $statToday = (int)$db->query("SELECT COUNT(*) FROM keluhan WHERE DATE(tanggal_lapor) = CURDATE()")->fetchColumn();
-        $statMonth = (int)$db->query("SELECT COUNT(*) FROM keluhan WHERE YEAR(tanggal_lapor) = YEAR(CURDATE()) AND MONTH(tanggal_lapor) = MONTH(CURDATE())")->fetchColumn();
-        $statOpen = (int)$db->query("SELECT COUNT(*) FROM keluhan WHERE status_keluhan = 'Open'")->fetchColumn();
-        $statSolved = (int)$db->query("SELECT COUNT(*) FROM keluhan WHERE status_keluhan = 'Solved'")->fetchColumn();
+        $filters = [
+            'from' => $_GET['from'] ?? date('Y-m-01'),
+            'to' => $_GET['to'] ?? date('Y-m-d'),
+            'kategori' => $_GET['kategori'] ?? '',
+            'status' => $_GET['status'] ?? '',
+        ];
+        $where = [];
+        $params = [];
+        if (!empty($filters['from'])) {
+            $where[] = "DATE(t.tanggal_lapor) >= :from";
+            $params[':from'] = $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $where[] = "DATE(t.tanggal_lapor) <= :to";
+            $params[':to'] = $filters['to'];
+        }
+        if (!empty($filters['kategori'])) {
+            $where[] = "t.kategori_id = :kategori";
+            $params[':kategori'] = $filters['kategori'];
+        }
+        if (!empty($filters['status'])) {
+            $where[] = "t.status_keluhan = :status";
+            $params[':status'] = $filters['status'];
+        }
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $kategoriRows = $db->query("SELECT k.nama_kategori AS label, COUNT(t.id) AS total FROM kategori_keluhan k LEFT JOIN keluhan t ON t.kategori_id = k.id GROUP BY k.id ORDER BY total DESC")->fetchAll();
+        // Statistik ringkas (menghormati filter tambahan)
+        $statTodayStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " DATE(t.tanggal_lapor) = CURDATE()");
+        foreach ($params as $k => $v) $statTodayStmt->bindValue($k, $v);
+        $statTodayStmt->execute();
+        $statToday = (int)$statTodayStmt->fetchColumn();
+
+        $statMonthStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " YEAR(t.tanggal_lapor) = YEAR(CURDATE()) AND MONTH(t.tanggal_lapor) = MONTH(CURDATE())");
+        foreach ($params as $k => $v) $statMonthStmt->bindValue($k, $v);
+        $statMonthStmt->execute();
+        $statMonth = (int)$statMonthStmt->fetchColumn();
+
+        $statOpenStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " t.status_keluhan = 'Open'");
+        foreach ($params as $k => $v) $statOpenStmt->bindValue($k, $v);
+        $statOpenStmt->execute();
+        $statOpen = (int)$statOpenStmt->fetchColumn();
+
+        $statSolvedStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " t.status_keluhan = 'Solved'");
+        foreach ($params as $k => $v) $statSolvedStmt->bindValue($k, $v);
+        $statSolvedStmt->execute();
+        $statSolved = (int)$statSolvedStmt->fetchColumn();
+
+        // Bar chart per kategori
+        $kategoriStmt = $db->prepare("SELECT k.nama_kategori AS label, COUNT(t.id) AS total FROM kategori_keluhan k LEFT JOIN keluhan t ON t.kategori_id = k.id {$whereSql} GROUP BY k.id ORDER BY total DESC");
+        foreach ($params as $k => $v) $kategoriStmt->bindValue($k, $v);
+        $kategoriStmt->execute();
+        $kategoriRows = $kategoriStmt->fetchAll();
         $barLabels = array_column($kategoriRows, 'label');
         $barValues = array_map('intval', array_column($kategoriRows, 'total'));
 
+        // Tren per hari (gunakan rentang filter jika ada, default 7 hari)
+        $trendStart = $filters['from'] ?: date('Y-m-d', strtotime('-6 days'));
+        $trendEnd = $filters['to'] ?: date('Y-m-d');
+        $period = new DatePeriod(new DateTime($trendStart), new DateInterval('P1D'), (new DateTime($trendEnd))->modify('+1 day'));
         $trendBase = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $trendBase[date('Y-m-d', strtotime("-{$i} days"))] = 0;
+        foreach ($period as $dt) {
+            $trendBase[$dt->format('Y-m-d')] = 0;
         }
-        $trendRows = $db->query("SELECT DATE(tanggal_lapor) AS d, COUNT(*) AS total FROM keluhan WHERE tanggal_lapor >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(tanggal_lapor)")->fetchAll();
+        $trendWhere = $whereSql ?: 'WHERE 1=1';
+        $trendStmt = $db->prepare("SELECT DATE(t.tanggal_lapor) AS d, COUNT(*) AS total FROM keluhan t {$trendWhere} GROUP BY DATE(t.tanggal_lapor)");
+        foreach ($params as $k => $v) $trendStmt->bindValue($k, $v);
+        $trendStmt->execute();
+        $trendRows = $trendStmt->fetchAll();
         foreach ($trendRows as $row) {
-            $trendBase[$row['d']] = (int)$row['total'];
+            if (isset($trendBase[$row['d']])) {
+                $trendBase[$row['d']] = (int)$row['total'];
+            }
         }
         $trendLabels = array_map(static fn($date) => date('D', strtotime($date)), array_keys($trendBase));
         $trendValues = array_values($trendBase);
 
-        $recentComplaints = $db->query("
+        // Keluhan terbaru (sesuai filter)
+        $recentStmt = $db->prepare("
             SELECT t.id, t.kode_keluhan, t.tanggal_lapor, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.status_keluhan, t.prioritas
             FROM keluhan t
             LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
             LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
+            {$whereSql}
             ORDER BY t.tanggal_lapor DESC
             LIMIT 10
-        ")->fetchAll();
+        ");
+        foreach ($params as $k => $v) $recentStmt->bindValue($k, $v);
+        $recentStmt->execute();
+        $recentComplaints = $recentStmt->fetchAll();
 
+        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
         require __DIR__ . '/../app/views/dashboard/index.php';
         break;
 

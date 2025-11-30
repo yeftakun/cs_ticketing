@@ -19,37 +19,36 @@ ob_start();
 </script>
 <div class="card border-0 mb-4">
     <div class="card-body">
-        <form class="row g-3 align-items-end">
+        <form class="row g-3 align-items-end" method="get">
+            <input type="hidden" name="page" value="dashboard">
             <div class="col-md-3">
                 <label class="form-label">Periode Dari</label>
-                <input type="date" class="form-control" value="2025-01-05">
+                <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($filters['from'] ?? '') ?>">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Sampai</label>
-                <input type="date" class="form-control" value="2025-01-12">
+                <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($filters['to'] ?? '') ?>">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Kategori</label>
-                <select class="form-select">
-                    <option>Semua</option>
-                    <option>Jaringan</option>
-                    <option>Tagihan</option>
-                    <option>Layanan Data</option>
+                <select class="form-select" name="kategori">
+                    <option value="">Semua</option>
+                    <?php foreach ($kategoriList as $opt): ?>
+                        <option value="<?= (int)$opt['id'] ?>" <?= ($filters['kategori'] ?? '') == $opt['id'] ? 'selected' : '' ?>><?= htmlspecialchars($opt['nama_kategori']) ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Status</label>
-                <select class="form-select">
-                    <option>Semua</option>
-                    <option>Open</option>
-                    <option>On Progress</option>
-                    <option>Pending</option>
-                    <option>Solved</option>
-                    <option>Closed</option>
+                <select class="form-select" name="status">
+                    <option value="">Semua</option>
+                    <?php foreach ($statusList as $opt): ?>
+                        <option value="<?= htmlspecialchars($opt) ?>" <?= ($filters['status'] ?? '') === $opt ? 'selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="col-md-2 d-grid">
-                <button class="btn btn-danger btn-lg" type="button">Terapkan Filter</button>
+                <button class="btn btn-danger btn-lg" type="submit">Terapkan Filter</button>
             </div>
         </form>
     </div>
@@ -87,7 +86,7 @@ ob_start();
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <h6 class="card-title mb-0">Jumlah Keluhan per Kategori</h6>
-                    <span class="text-muted small">7 Kategori</span>
+                    <span class="text-muted small"><?= count($barLabels ?? []) ?> Kategori</span>
                 </div>
                 <canvas id="kategoriChart" height="260"></canvas>
             </div>
@@ -98,7 +97,7 @@ ob_start();
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <h6 class="card-title mb-0">Tren Keluhan per Hari</h6>
-                    <span class="text-muted small">1 Minggu terakhir</span>
+                    <span class="text-muted small">Periode <?= htmlspecialchars($filters['from'] ?? '') ?> - <?= htmlspecialchars($filters['to'] ?? '') ?></span>
                 </div>
                 <canvas id="trendChart" height="260"></canvas>
             </div>
@@ -110,7 +109,7 @@ ob_start();
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="card-title mb-0">Keluhan Terbaru</h6>
-            <a href="#" class="btn btn-outline-danger btn-sm">Lihat Semua</a>
+            <a href="?page=keluhan" class="btn btn-outline-danger btn-sm">Lihat Semua</a>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
