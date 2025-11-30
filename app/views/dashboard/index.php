@@ -13,9 +13,22 @@ ob_start();
         },
         trend: {
             labels: <?= json_encode($trendLabels ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
-            values: <?= json_encode($trendValues ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
+            values: <?= json_encode($trendValues ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
+            solved: <?= json_encode($trendSolvedValues ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
         }
     };
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('dashboard-submit');
+    const form = btn?.closest('form');
+    if (form && btn) {
+        form.addEventListener('submit', () => {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memuat...';
+        });
+    }
+});
 </script>
 <div class="card border-0 mb-4">
     <div class="card-body">
@@ -48,7 +61,10 @@ ob_start();
                 </select>
             </div>
             <div class="col-md-2 d-grid">
-                <button class="btn btn-danger btn-lg" type="submit">Terapkan Filter</button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger btn-lg flex-fill" id="dashboard-submit" type="submit">Terapkan Filter</button>
+                    <a class="btn btn-outline-secondary" href="?page=dashboard">Reset</a>
+                </div>
             </div>
         </form>
     </div>
@@ -57,10 +73,10 @@ ob_start();
 <div class="row g-3">
     <?php
     $stats = [
-        ['label' => 'Total Keluhan Hari Ini', 'value' => $statToday ?? 0, 'icon' => 'bi-activity', 'variant' => 'danger', 'note' => 'Hari ini'],
-        ['label' => 'Total Keluhan Bulan Ini', 'value' => $statMonth ?? 0, 'icon' => 'bi-graph-up', 'variant' => 'primary', 'note' => 'Bulan berjalan'],
-        ['label' => 'Keluhan Open', 'value' => $statOpen ?? 0, 'icon' => 'bi-exclamation-circle', 'variant' => 'warning', 'note' => 'Belum ditangani'],
-        ['label' => 'Keluhan Solved', 'value' => $statSolved ?? 0, 'icon' => 'bi-check2-circle', 'variant' => 'success', 'note' => 'Terselesaikan'],
+        ['label' => 'Total Keluhan Hari Ini', 'value' => $statToday ?? 0, 'icon' => 'bi-activity', 'variant' => 'danger', 'note' => $statNotes['today'] ?? ''],
+        ['label' => 'Total Keluhan Bulan Ini', 'value' => $statMonth ?? 0, 'icon' => 'bi-graph-up', 'variant' => 'primary', 'note' => $statNotes['month'] ?? ''],
+        ['label' => 'Keluhan Open', 'value' => $statOpen ?? 0, 'icon' => 'bi-exclamation-circle', 'variant' => 'warning', 'note' => $statNotes['open'] ?? ''],
+        ['label' => 'Keluhan Solved', 'value' => $statSolved ?? 0, 'icon' => 'bi-check2-circle', 'variant' => 'success', 'note' => $statNotes['solved'] ?? ''],
     ];
     foreach ($stats as $stat): ?>
         <div class="col-sm-6 col-lg-3">
@@ -88,6 +104,7 @@ ob_start();
                     <h6 class="card-title mb-0">Jumlah Keluhan per Kategori</h6>
                     <span class="text-muted small"><?= count($barLabels ?? []) ?> Kategori</span>
                 </div>
+                <div class="text-muted small empty-state d-none">Data belum tersedia.</div>
                 <canvas id="kategoriChart" height="260"></canvas>
             </div>
         </div>
@@ -99,6 +116,7 @@ ob_start();
                     <h6 class="card-title mb-0">Tren Keluhan per Hari</h6>
                     <span class="text-muted small">Periode <?= htmlspecialchars($filters['from'] ?? '') ?> - <?= htmlspecialchars($filters['to'] ?? '') ?></span>
                 </div>
+                <div class="text-muted small empty-state d-none">Data belum tersedia.</div>
                 <canvas id="trendChart" height="260"></canvas>
             </div>
         </div>
@@ -109,7 +127,16 @@ ob_start();
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="card-title mb-0">Keluhan Terbaru</h6>
-            <a href="?page=keluhan" class="btn btn-outline-danger btn-sm">Lihat Semua</a>
+            <?php
+            $keluhanQuery = array_filter([
+                'page' => 'keluhan',
+                'kategori' => $filters['kategori'] ?? '',
+                'status' => $filters['status'] ?? '',
+                'from' => $filters['from'] ?? '',
+                'to' => $filters['to'] ?? '',
+            ]);
+            ?>
+            <a href="?<?= http_build_query($keluhanQuery) ?>" class="btn btn-outline-danger btn-sm">Lihat Semua</a>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">

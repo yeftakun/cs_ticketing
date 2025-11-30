@@ -96,75 +96,133 @@ switch ($page) {
             'kategori' => $_GET['kategori'] ?? '',
             'status' => $_GET['status'] ?? '',
         ];
-        $where = [];
-        $params = [];
-        if (!empty($filters['from'])) {
-            $where[] = "DATE(t.tanggal_lapor) >= :from";
-            $params[':from'] = $filters['from'];
-        }
-        if (!empty($filters['to'])) {
-            $where[] = "DATE(t.tanggal_lapor) <= :to";
-            $params[':to'] = $filters['to'];
-        }
+
+        // Base filter (tanpa tanggal) untuk konsistensi perbandingan
+        $whereBase = [];
+        $paramsBase = [];
         if (!empty($filters['kategori'])) {
-            $where[] = "t.kategori_id = :kategori";
-            $params[':kategori'] = $filters['kategori'];
+            $whereBase[] = "t.kategori_id = :kategori";
+            $paramsBase[':kategori'] = $filters['kategori'];
         }
         if (!empty($filters['status'])) {
-            $where[] = "t.status_keluhan = :status";
-            $params[':status'] = $filters['status'];
+            $whereBase[] = "t.status_keluhan = :status";
+            $paramsBase[':status'] = $filters['status'];
         }
-        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+        $dateWhere = [];
+        $dateParams = [];
+        if (!empty($filters['from'])) {
+            $dateWhere[] = "DATE(t.tanggal_lapor) >= :from";
+            $dateParams[':from'] = $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $dateWhere[] = "DATE(t.tanggal_lapor) <= :to";
+            $dateParams[':to'] = $filters['to'];
+        }
 
-        // Statistik ringkas (menghormati filter tambahan)
-        $statTodayStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " DATE(t.tanggal_lapor) = CURDATE()");
-        foreach ($params as $k => $v) $statTodayStmt->bindValue($k, $v);
-        $statTodayStmt->execute();
-        $statToday = (int)$statTodayStmt->fetchColumn();
+        $whereAll = array_merge($whereBase, $dateWhere);
+        $paramsAll = array_merge($paramsBase, $dateParams);
+        $whereSql = $whereAll ? 'WHERE ' . implode(' AND ', $whereAll) : '';
+        $whereBaseSql = $whereBase ? 'WHERE ' . implode(' AND ', $whereBase) : '';
 
-        $statMonthStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " YEAR(t.tanggal_lapor) = YEAR(CURDATE()) AND MONTH(t.tanggal_lapor) = MONTH(CURDATE())");
-        foreach ($params as $k => $v) $statMonthStmt->bindValue($k, $v);
-        $statMonthStmt->execute();
-        $statMonth = (int)$statMonthStmt->fetchColumn();
+        $runCount = function (string $extraCondition, array $extraParams = []) use ($db, $whereBaseSql, $paramsBase) {
+            $whereParts = [];
+            if ($whereBaseSql) {
+                $whereParts[] = substr($whereBaseSql, 6); // remove 'WHERE '
+            }
+            if ($extraCondition !== '') {
+                $whereParts[] = $extraCondition;
+            }
+            $sqlWhere = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
+            $stmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$sqlWhere}");
+            foreach ($paramsBase as $k => $v) $stmt->bindValue($k, $v);
+            foreach ($extraParams as $k => $v) $stmt->bindValue($k, $v);
+            $stmt->execute();
+            return (int)$stmt->fetchColumn();
+        };
 
-        $statOpenStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " t.status_keluhan = 'Open'");
-        foreach ($params as $k => $v) $statOpenStmt->bindValue($k, $v);
-        $statOpenStmt->execute();
-        $statOpen = (int)$statOpenStmt->fetchColumn();
+        $buildCondition = function (array $dateWhere, string $extra) use ($dateParams): array {
+            $parts = $dateWhere;
+            if ($extra !== '') {
+                $parts[] = $extra;
+            }
+            $condition = $parts ? implode(' AND ', $parts) : '';
+            $params = $dateWhere ? $dateParams : [];
+            return [$condition, $params];
+        };
 
-        $statSolvedStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t {$whereSql} " . ($where ? " AND " : " WHERE ") . " t.status_keluhan = 'Solved'");
-        foreach ($params as $k => $v) $statSolvedStmt->bindValue($k, $v);
-        $statSolvedStmt->execute();
-        $statSolved = (int)$statSolvedStmt->fetchColumn();
+        [$condToday, $paramsToday] = $buildCondition($dateWhere, "DATE(t.tanggal_lapor) = CURDATE()");
+        [$condYesterday, $paramsYesterday] = $buildCondition($dateWhere, "DATE(t.tanggal_lapor) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
+        [$condMonth, $paramsMonth] = $buildCondition($dateWhere, "YEAR(t.tanggal_lapor) = YEAR(CURDATE()) AND MONTH(t.tanggal_lapor) = MONTH(CURDATE())");
+        [$condPrevMonth, $paramsPrevMonth] = $buildCondition($dateWhere, "YEAR(t.tanggal_lapor) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND MONTH(t.tanggal_lapor) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))");
+        [$condOpen, $paramsOpen] = $buildCondition($dateWhere, "t.status_keluhan = 'Open'");
+        [$condOpenPrev, $paramsOpenPrev] = $buildCondition($dateWhere, "t.status_keluhan = 'Open' AND DATE(t.tanggal_update_terakhir) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
+        [$condSolvedPrev, $paramsSolvedPrev] = $buildCondition($dateWhere, "t.status_keluhan = 'Solved' AND DATE(COALESCE(t.tanggal_selesai, t.tanggal_update_terakhir, t.tanggal_lapor)) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)");
+
+        $statToday = $runCount($condToday, $paramsToday);
+        $statYesterday = $runCount($condYesterday, $paramsYesterday);
+
+        $statMonth = $runCount($condMonth, $paramsMonth);
+        $statPrevMonth = $runCount($condPrevMonth, $paramsPrevMonth);
+
+        $statOpen = $runCount($condOpen, $paramsOpen);
+        $statOpenPrev = $runCount($condOpenPrev, $paramsOpenPrev);
+
+        $statSolved = $runCount("t.status_keluhan = 'Solved'");
+        $statSolvedPrev = $runCount($condSolvedPrev, $paramsSolvedPrev);
+
+        $formatDelta = function (int $current, int $prev): string {
+            if ($prev <= 0) {
+                return $current > 0 ? "+100% vs 0" : "Stabil";
+            }
+            $diff = $current - $prev;
+            $pct = round(($diff / $prev) * 100, 1);
+            return ($diff >= 0 ? '+' : '') . $pct . '% vs sebelumnya';
+        };
+
+        $statNotes = [
+            'today' => $formatDelta($statToday, $statYesterday),
+            'month' => $formatDelta($statMonth, $statPrevMonth),
+            'open' => $formatDelta($statOpen, $statOpenPrev),
+            'solved' => $formatDelta($statSolved, $statSolvedPrev),
+        ];
 
         // Bar chart per kategori
         $kategoriStmt = $db->prepare("SELECT k.nama_kategori AS label, COUNT(t.id) AS total FROM kategori_keluhan k LEFT JOIN keluhan t ON t.kategori_id = k.id {$whereSql} GROUP BY k.id ORDER BY total DESC");
-        foreach ($params as $k => $v) $kategoriStmt->bindValue($k, $v);
+        foreach ($paramsAll as $k => $v) $kategoriStmt->bindValue($k, $v);
         $kategoriStmt->execute();
         $kategoriRows = $kategoriStmt->fetchAll();
         $barLabels = array_column($kategoriRows, 'label');
         $barValues = array_map('intval', array_column($kategoriRows, 'total'));
 
-        // Tren per hari (gunakan rentang filter jika ada, default 7 hari)
+        // Tren per hari (dua seri: baru & selesai)
         $trendStart = $filters['from'] ?: date('Y-m-d', strtotime('-6 days'));
         $trendEnd = $filters['to'] ?: date('Y-m-d');
         $period = new DatePeriod(new DateTime($trendStart), new DateInterval('P1D'), (new DateTime($trendEnd))->modify('+1 day'));
-        $trendBase = [];
+        $trendBaseNew = $trendBaseSolved = [];
         foreach ($period as $dt) {
-            $trendBase[$dt->format('Y-m-d')] = 0;
+            $trendBaseNew[$dt->format('Y-m-d')] = 0;
+            $trendBaseSolved[$dt->format('Y-m-d')] = 0;
         }
         $trendWhere = $whereSql ?: 'WHERE 1=1';
         $trendStmt = $db->prepare("SELECT DATE(t.tanggal_lapor) AS d, COUNT(*) AS total FROM keluhan t {$trendWhere} GROUP BY DATE(t.tanggal_lapor)");
-        foreach ($params as $k => $v) $trendStmt->bindValue($k, $v);
+        foreach ($paramsAll as $k => $v) $trendStmt->bindValue($k, $v);
         $trendStmt->execute();
-        $trendRows = $trendStmt->fetchAll();
-        foreach ($trendRows as $row) {
-            if (isset($trendBase[$row['d']])) {
-                $trendBase[$row['d']] = (int)$row['total'];
+        foreach ($trendStmt->fetchAll() as $row) {
+            if (isset($trendBaseNew[$row['d']])) {
+                $trendBaseNew[$row['d']] = (int)$row['total'];
             }
         }
-        $trendLabels = array_map(static fn($date) => date('D', strtotime($date)), array_keys($trendBase));
-        $trendValues = array_values($trendBase);
+        $trendSolvedStmt = $db->prepare("SELECT DATE(COALESCE(t.tanggal_selesai, t.tanggal_update_terakhir, t.tanggal_lapor)) AS d, COUNT(*) AS total FROM keluhan t {$trendWhere} AND t.status_keluhan IN ('Solved','Closed') GROUP BY DATE(COALESCE(t.tanggal_selesai, t.tanggal_update_terakhir, t.tanggal_lapor))");
+        foreach ($paramsAll as $k => $v) $trendSolvedStmt->bindValue($k, $v);
+        $trendSolvedStmt->execute();
+        foreach ($trendSolvedStmt->fetchAll() as $row) {
+            if (isset($trendBaseSolved[$row['d']])) {
+                $trendBaseSolved[$row['d']] = (int)$row['total'];
+            }
+        }
+        $trendLabels = array_map(static fn($date) => date('D', strtotime($date)), array_keys($trendBaseNew));
+        $trendValues = array_values($trendBaseNew);
+        $trendSolvedValues = array_values($trendBaseSolved);
 
         // Keluhan terbaru (sesuai filter)
         $recentStmt = $db->prepare("
@@ -176,7 +234,7 @@ switch ($page) {
             ORDER BY t.tanggal_lapor DESC
             LIMIT 10
         ");
-        foreach ($params as $k => $v) $recentStmt->bindValue($k, $v);
+        foreach ($paramsAll as $k => $v) $recentStmt->bindValue($k, $v);
         $recentStmt->execute();
         $recentComplaints = $recentStmt->fetchAll();
 
@@ -185,6 +243,50 @@ switch ($page) {
         break;
 
     case 'keluhan':
+        // Quick status update from list (modal)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick-status') {
+            $id = (int)($_POST['id'] ?? 0);
+            $statusBaru = $_POST['status_baru'] ?? '';
+            $catatan = trim($_POST['catatan'] ?? '');
+            if ($id > 0 && in_array($statusBaru, $statusList, true) && $catatan !== '') {
+                try {
+                    $now = date('Y-m-d H:i:s');
+                    $db->beginTransaction();
+                    $ins = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
+                    $ins->execute([
+                        ':keluhan_id' => $id,
+                        ':status' => $statusBaru,
+                        ':catatan' => $catatan,
+                        ':tgl' => $now,
+                        ':user_id' => $currentUser['id'],
+                    ]);
+                    $selesai = in_array($statusBaru, ['Solved', 'Closed'], true) ? $now : null;
+                    $upd = $db->prepare("
+                        UPDATE keluhan
+                        SET status_keluhan = :status,
+                            tanggal_update_terakhir = :tgl,
+                            tanggal_selesai = :selesai,
+                            updated_by = :user_id
+                        WHERE id = :id
+                    ");
+                    $upd->execute([
+                        ':status' => $statusBaru,
+                        ':tgl' => $now,
+                        ':selesai' => $selesai,
+                        ':user_id' => $currentUser['id'],
+                        ':id' => $id,
+                    ]);
+                    $db->commit();
+                    redirect('?page=keluhan&info=Status%20berhasil%20diperbarui');
+                } catch (PDOException $e) {
+                    $db->rollBack();
+                    $error = 'Gagal memperbarui status.';
+                }
+            } else {
+                $error = 'Status atau catatan tidak valid.';
+            }
+        }
+
         $filters = [
             'q' => trim($_GET['q'] ?? ''),
             'kategori' => $_GET['kategori'] ?? '',
@@ -195,6 +297,15 @@ switch ($page) {
             'to' => $_GET['to'] ?? '',
             'pelanggan' => $_GET['pelanggan'] ?? '',
         ];
+        $sort = $_GET['sort'] ?? 'tanggal_lapor';
+        $dir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+        $allowedSort = [
+            'tanggal_lapor' => 't.tanggal_lapor',
+            'kode_keluhan' => 't.kode_keluhan',
+            'status_keluhan' => 't.status_keluhan',
+            'prioritas' => 't.prioritas'
+        ];
+        $sortSql = $allowedSort[$sort] ?? 't.tanggal_lapor';
         $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
 
         $where = [];
@@ -249,7 +360,7 @@ switch ($page) {
             LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
             LEFT JOIN users u ON u.id = t.updated_by
             {$whereSql}
-            ORDER BY t.tanggal_lapor DESC
+            ORDER BY {$sortSql} {$dir}
             LIMIT :limit OFFSET :offset
         ";
         $stmt = $db->prepare($sql);

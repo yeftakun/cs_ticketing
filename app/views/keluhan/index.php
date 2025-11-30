@@ -76,17 +76,30 @@ ob_start();
 
 <div class="card">
     <div class="card-body">
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($_GET['info'])): ?>
+            <div class="alert alert-success"><?= htmlspecialchars($_GET['info']) ?></div>
+        <?php endif; ?>
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle mb-0">
                 <thead>
                     <tr>
-                        <th>Tanggal Lapor</th>
-                        <th>Kode Keluhan</th>
+                        <?php
+                        $buildSort = function ($key) use ($sort, $dir, $filters) {
+                            $nextDir = ($sort === $key && $dir === 'asc') ? 'desc' : 'asc';
+                            $params = array_merge($_GET, ['page' => 'keluhan', 'sort' => $key, 'dir' => $nextDir]);
+                            return '?' . http_build_query($params);
+                        };
+                        ?>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('tanggal_lapor') ?>">Tanggal Lapor</a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('kode_keluhan') ?>">Kode Keluhan</a></th>
                         <th>Pelanggan</th>
-                        <th>Kategori</th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('kategori') ?>">Kategori</a></th>
                         <th>Channel</th>
-                        <th>Status</th>
-                        <th>Prioritas</th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('status_keluhan') ?>">Status</a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('prioritas') ?>">Prioritas</a></th>
                         <th>Petugas</th>
                         <th>Aksi</th>
                     </tr>
@@ -106,6 +119,7 @@ ob_start();
                                 <div class="btn-group btn-group-sm">
                                     <a class="btn btn-outline-secondary" href="?page=keluhan-show&id=<?= (int)$row['id'] ?>">Detail</a>
                                     <a class="btn btn-outline-danger" href="?page=keluhan-edit&id=<?= (int)$row['id'] ?>">Update</a>
+                                    <button class="btn btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#quickStatusModal" data-id="<?= (int)$row['id'] ?>" data-kode="<?= htmlspecialchars($row['kode_keluhan']) ?>">Status</button>
                                 </div>
                             </td>
                         </tr>
@@ -123,11 +137,13 @@ ob_start();
                 $totalPages = $totalPages ?? 1;
                 $prev = $currentPage - 1;
                 $next = $currentPage + 1;
+                $start = max(1, $currentPage - 2);
+                $end = min($totalPages, $currentPage + 2);
                 ?>
                 <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
                     <a class="page-link" href="<?= $currentPage <= 1 ? '#' : '?page=keluhan&p=' . $prev ?>">Prev</a>
                 </li>
-                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                <?php for ($i = $start; $i <= $end; $i++): ?>
                     <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>"><a class="page-link" href="?page=keluhan&p=<?= $i ?>"><?= $i ?></a></li>
                 <?php endfor; ?>
                 <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
@@ -137,6 +153,50 @@ ob_start();
         </nav>
     </div>
 </div>
+<!-- Modal Quick Status -->
+<div class="modal fade" id="quickStatusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action="?page=keluhan">
+            <input type="hidden" name="action" value="quick-status">
+            <input type="hidden" name="id" id="qs-id">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Status Keluhan <span id="qs-kode" class="text-muted"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Status Baru</label>
+                    <select class="form-select" name="status_baru">
+                        <?php foreach ($statusList as $opt): ?>
+                            <option value="<?= htmlspecialchars($opt) ?>"><?= htmlspecialchars($opt) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Catatan</label>
+                    <textarea class="form-control" name="catatan" rows="2" placeholder="Catatan singkat progres..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" class="btn btn-danger">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('quickStatusModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function (event) {
+        var button = event.relatedTarget;
+        var id = button.getAttribute('data-id');
+        var kode = button.getAttribute('data-kode');
+        modal.querySelector('#qs-id').value = id || '';
+        modal.querySelector('#qs-kode').textContent = kode ? '(' + kode + ')' : '';
+    });
+});
+</script>
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/../layouts/main.php';

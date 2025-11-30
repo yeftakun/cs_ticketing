@@ -26,8 +26,13 @@
 
     if (barEl) {
         const ctx = barEl.getContext("2d");
-        const labels = data.bar?.labels || ["Jaringan", "Tagihan", "Produk", "Layanan Data", "Promo", "Perangkat", "Lainnya"];
-        const values = data.bar?.values || [42, 35, 28, 30, 22, 18, 12];
+        const labels = data.bar?.labels || [];
+        const values = data.bar?.values || [];
+        const hasData = Array.isArray(values) && values.some((v) => Number(v) > 0);
+        if (!hasData) {
+            barEl.parentElement.querySelector(".empty-state")?.classList.remove("d-none");
+            return;
+        }
         new Chart(ctx, {
             type: "bar",
             data: {
@@ -55,8 +60,16 @@
 
     if (trendEl) {
         const ctx = trendEl.getContext("2d");
-        const labels = data.trend?.labels || ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
-        const values = data.trend?.values || [32, 28, 30, 27, 35, 25, 22];
+        const labels = data.trend?.labels || [];
+        const values = data.trend?.values || [];
+        const solved = data.trend?.solved || [];
+        const hasData =
+            (Array.isArray(values) && values.some((v) => Number(v) > 0)) ||
+            (Array.isArray(solved) && solved.some((v) => Number(v) > 0));
+        if (!hasData) {
+            trendEl.parentElement.querySelector(".empty-state")?.classList.remove("d-none");
+            return;
+        }
         new Chart(ctx, {
             type: "line",
             data: {
@@ -67,6 +80,15 @@
                         data: values,
                         borderColor: "#b00020",
                         backgroundColor: "rgba(176, 0, 32, 0.12)",
+                        tension: 0.35,
+                        borderWidth: 3,
+                        fill: true
+                    },
+                    {
+                        label: "Keluhan Selesai",
+                        data: solved,
+                        borderColor: "#0ea5e9",
+                        backgroundColor: "rgba(14, 165, 233, 0.12)",
                         tension: 0.35,
                         borderWidth: 3,
                         fill: true
