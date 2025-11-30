@@ -108,6 +108,37 @@ $prioritasList = ['Low', 'Medium', 'High', 'Critical'];
 $channelList = ['Call Center', 'Grapari', 'WhatsApp', 'Aplikasi', 'Live Chat', 'Media Sosial', 'Email', 'Lainnya'];
 
 switch ($page) {
+    case 'profile':
+        $userId = $currentUser['id'];
+        $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $userId]);
+        $userProfile = $stmt->fetch();
+        if (!$userProfile) {
+            redirect('?page=login');
+        }
+        $errors = [];
+        $success = null;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $nama = trim($_POST['nama'] ?? '');
+            $password = $_POST['password'] ?? '';
+            if ($nama === '') $errors[] = 'Nama wajib diisi.';
+            if (empty($errors)) {
+                $params = [':nama' => $nama, ':id' => $userId];
+                $sql = "UPDATE users SET nama = :nama";
+                if ($password !== '') {
+                    $sql .= ", password_hash = :pwd";
+                    $params[':pwd'] = password_hash($password, PASSWORD_BCRYPT);
+                }
+                $sql .= " WHERE id = :id";
+                $upd = $db->prepare($sql);
+                $upd->execute($params);
+                $_SESSION['user']['name'] = $nama;
+                $success = 'Profil berhasil diperbarui.';
+                $userProfile['nama'] = $nama;
+            }
+        }
+        require __DIR__ . '/../app/views/profile.php';
+        break;
     case 'dashboard':
         $filters = [
             'from' => $_GET['from'] ?? date('Y-m-01'),
