@@ -371,8 +371,11 @@ switch ($page) {
         $where = [];
         $params = [];
         if ($filters['q'] !== '') {
-            $where[] = "(t.kode_keluhan LIKE :q OR p.nama_pelanggan LIKE :q OR p.no_hp LIKE :q)";
-            $params[':q'] = '%' . $filters['q'] . '%';
+            $where[] = "(t.kode_keluhan LIKE :q_kode OR p.nama_pelanggan LIKE :q_nama OR p.no_hp LIKE :q_hp)";
+            $like = '%' . $filters['q'] . '%';
+            $params[':q_kode'] = $like;
+            $params[':q_nama'] = $like;
+            $params[':q_hp'] = $like;
         }
         if ($filters['kategori'] !== '') {
             $where[] = "t.kategori_id = :kategori";
