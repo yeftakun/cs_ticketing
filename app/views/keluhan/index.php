@@ -133,7 +133,7 @@ ob_start();
                 <tbody>
                     <?php foreach ($complaints as $row): ?>
                         <tr>
-                            <td><input type="checkbox" name="ids[]" form="bulk-form-placeholder" value="<?= (int)$row['id'] ?>" class="row-check"></td>
+                            <td><input type="checkbox" name="ids[]" value="<?= (int)$row['id'] ?>" class="row-check"></td>
                             <td><?= htmlspecialchars($row['tanggal_lapor']) ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($row['kode_keluhan']) ?></td>
                             <td><?= htmlspecialchars(($row['nama_pelanggan'] ?? '-') . ' / ' . ($row['no_hp'] ?? '-')) ?></td>
@@ -259,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // Bulk checkbox handling
 (function() {
     const checkAll = document.getElementById('check-all');
-    const rowChecks = document.querySelectorAll('.row-check');
     const bulkForm = document.getElementById('bulk-form');
 
     const sync = () => {
@@ -276,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
             boxes.forEach((c) => { c.checked = checkAll.checked; });
         });
     }
-    rowChecks.forEach((c) => c.addEventListener('change', sync));
+    document.querySelectorAll('.row-check').forEach((c) => c.addEventListener('change', sync));
 
     // Submit handler to ensure selected IDs stay in the bulk form
     if (bulkForm) {

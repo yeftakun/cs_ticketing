@@ -297,7 +297,6 @@ switch ($page) {
                 try {
                     $db->beginTransaction();
                     $now = date('Y-m-d H:i:s');
-                    $inPlaceholders = implode(',', array_fill(0, count($idsInt), '?'));
                     // Insert log per keluhan
                     $insLog = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
                     foreach ($idsInt as $keluhanId) {
@@ -309,23 +308,31 @@ switch ($page) {
                             ':user_id' => $currentUser['id'],
                         ]);
                     }
+                    // Update status secara bulk
                     $selesai = in_array($statusBaru, ['Solved', 'Closed'], true) ? $now : null;
-                    $upd = $db->prepare("
+                    $idPlaceholders = [];
+                    $bindParams = [
+                        ':status' => $statusBaru,
+                        ':tgl' => $now,
+                        ':selesai' => $selesai,
+                        ':user_id' => $currentUser['id'],
+                    ];
+                    foreach ($idsInt as $idx => $keluhanId) {
+                        $ph = ':id' . $idx;
+                        $idPlaceholders[] = $ph;
+                        $bindParams[$ph] = $keluhanId;
+                    }
+                    $updSql = "
                         UPDATE keluhan
                         SET status_keluhan = :status,
                             tanggal_update_terakhir = :tgl,
                             tanggal_selesai = :selesai,
                             updated_by = :user_id
-                        WHERE id IN ({$inPlaceholders})
-                    ");
-                    $bindIndex = 1;
-                    $upd->bindValue(':status', $statusBaru);
-                    $upd->bindValue(':tgl', $now);
-                    $upd->bindValue(':selesai', $selesai);
-                    $upd->bindValue(':user_id', $currentUser['id']);
-                    foreach ($idsInt as $keluhanId) {
-                        $upd->bindValue($bindIndex, $keluhanId, PDO::PARAM_INT);
-                        $bindIndex++;
+                        WHERE id IN (" . implode(',', $idPlaceholders) . ")
+                    ";
+                    $upd = $db->prepare($updSql);
+                    foreach ($bindParams as $k => $v) {
+                        $upd->bindValue($k, $v);
                     }
                     $upd->execute();
                     $db->commit();
@@ -355,7 +362,8 @@ switch ($page) {
             'tanggal_lapor' => 't.tanggal_lapor',
             'kode_keluhan' => 't.kode_keluhan',
             'status_keluhan' => 't.status_keluhan',
-            'prioritas' => 't.prioritas'
+            'prioritas' => 't.prioritas',
+            'kategori' => 'k.nama_kategori'
         ];
         $sortSql = $allowedSort[$sort] ?? 't.tanggal_lapor';
         $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
@@ -395,6 +403,48 @@ switch ($page) {
             $params[':to'] = $filters['to'];
         }
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Export handling
+        $exportType = $_GET['export_type'] ?? $_GET['export'] ?? null;
+        if ($exportType) {
+            $exportSql = "
+                SELECT t.tanggal_lapor, t.kode_keluhan, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.channel, t.status_keluhan, t.prioritas, u.nama AS petugas
+                FROM keluhan t
+                LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
+                LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
+                LEFT JOIN users u ON u.id = t.updated_by
+                {$whereSql}
+                ORDER BY {$sortSql} {$dir}
+            ";
+            $stmt = $db->prepare($exportSql);
+            foreach ($params as $k => $v) {
+                $stmt->bindValue($k, $v);
+            }
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $filename = 'keluhan-' . date('Ymd-His') . '.csv';
+            $ctype = ($exportType === 'excel') ? 'application/vnd.ms-excel' : 'text/csv';
+            header('Content-Type: ' . $ctype);
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Tanggal Lapor', 'Kode Keluhan', 'Nama Pelanggan', 'No HP', 'Kategori', 'Channel', 'Status', 'Prioritas', 'Petugas']);
+            foreach ($rows as $r) {
+                fputcsv($out, [
+                    $r['tanggal_lapor'],
+                    $r['kode_keluhan'],
+                    $r['nama_pelanggan'],
+                    $r['no_hp'],
+                    $r['nama_kategori'],
+                    $r['channel'],
+                    $r['status_keluhan'],
+                    $r['prioritas'],
+                    $r['petugas'],
+                ]);
+            }
+            fclose($out);
+            exit;
+        }
 
         $pageNum = max(1, (int)($_GET['p'] ?? 1));
         $perPage = 10;
