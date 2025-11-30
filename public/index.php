@@ -692,6 +692,12 @@ switch ($page) {
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) redirect('?page=keluhan');
 
+        $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+        if ($basePath === '/' || $basePath === '\\') {
+            $basePath = '';
+        }
+        $appBase = preg_replace('#/public$#', '', $basePath);
+
         $stmt = $db->prepare("
             SELECT t.*, p.nama_pelanggan, p.no_hp, p.kota, k.nama_kategori
             FROM keluhan t
@@ -705,7 +711,7 @@ switch ($page) {
         if (!$keluhan) redirect('?page=keluhan');
 
         $uploadBaseDir = __DIR__ . '/uploads/keluhan';
-        $uploadBaseUrl = '/uploads/keluhan';
+        $uploadBaseUrl = $appBase . '/public/uploads/keluhan';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statusBaru = $_POST['status_baru'] ?? '';
