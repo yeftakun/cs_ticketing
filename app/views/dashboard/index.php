@@ -20,19 +20,28 @@ ob_start();
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const btn = document.getElementById('dashboard-submit');
-    const form = btn?.closest('form');
-    if (form && btn) {
-        form.addEventListener('submit', () => {
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memuat...';
+    const form = document.getElementById('dashboard-filter-form');
+    if (form) {
+        const debounce = (fn, delay = 400) => {
+            let t;
+            return (...args) => {
+                clearTimeout(t);
+                t = setTimeout(() => fn(...args), delay);
+            };
+        };
+        const submit = debounce(() => form.submit());
+        form.querySelectorAll('input, select').forEach((el) => {
+            el.addEventListener('change', submit);
+            if (el.tagName === 'INPUT' && el.type === 'text') {
+                el.addEventListener('input', submit);
+            }
         });
     }
 });
 </script>
 <div class="card border-0 mb-4">
     <div class="card-body">
-        <form class="row g-3 align-items-end" method="get">
+        <form class="row g-3 align-items-end" method="get" id="dashboard-filter-form">
             <input type="hidden" name="page" value="dashboard">
             <div class="col-md-3">
                 <label class="form-label">Periode Dari</label>
@@ -61,8 +70,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 </select>
             </div>
             <div class="col-md-2 d-grid">
-                <div class="d-flex gap-2">
-                    <button class="btn btn-danger btn-lg flex-fill" id="dashboard-submit" type="submit">Terapkan Filter</button>
+                <div class="d-flex gap-2 align-items-center">
+                    <span class="text-muted small">Filter otomatis</span>
                     <a class="btn btn-outline-secondary" href="?page=dashboard">Reset</a>
                 </div>
             </div>

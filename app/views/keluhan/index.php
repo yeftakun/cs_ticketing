@@ -19,7 +19,7 @@ ob_start();
 
 <div class="card border-0 mb-3">
     <div class="card-body">
-        <form class="row gy-2 gx-3" method="get">
+        <form class="row gy-2 gx-3" method="get" id="keluhan-filter-form">
             <input type="hidden" name="page" value="keluhan">
             <div class="col-md-4">
                 <label class="form-label">Cari</label>
@@ -72,7 +72,7 @@ ob_start();
                 <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($filters['to'] ?? '') ?>">
             </div>
             <div class="col-md-2 d-flex gap-2 align-items-end">
-                <button class="btn btn-danger flex-fill" type="submit">Filter</button>
+                <span class="text-muted small align-self-center">Filter otomatis</span>
                 <a class="btn btn-outline-secondary" href="?page=keluhan">Reset</a>
             </div>
         </form>
@@ -295,6 +295,26 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+})();
+
+// Auto submit filters
+(function() {
+    const form = document.getElementById('keluhan-filter-form');
+    if (!form) return;
+    const debounce = (fn, delay = 400) => {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), delay);
+        };
+    };
+    const submit = debounce(() => form.submit());
+    form.querySelectorAll('input, select').forEach((el) => {
+        el.addEventListener('change', submit);
+        if (el.tagName === 'INPUT' && el.type === 'text') {
+            el.addEventListener('input', submit);
+        }
+    });
 })();
 </script>
 <?php

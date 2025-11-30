@@ -14,7 +14,7 @@ ob_start();
 
 <div class="card border-0 mb-3">
     <div class="card-body">
-        <form class="row gy-2 gx-3 align-items-end" method="get">
+        <form class="row gy-2 gx-3 align-items-end" method="get" id="pelanggan-filter-form">
             <input type="hidden" name="page" value="pelanggan">
             <div class="col-md-6">
                 <label class="form-label">Cari Pelanggan</label>
@@ -32,8 +32,9 @@ ob_start();
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-3 d-grid">
-                <button class="btn btn-danger" type="submit">Filter</button>
+            <div class="col-md-3 d-flex align-items-center gap-2">
+                <span class="text-muted small">Filter otomatis</span>
+                <a class="btn btn-outline-secondary" href="?page=pelanggan">Reset</a>
             </div>
         </form>
     </div>
@@ -77,6 +78,26 @@ ob_start();
         </div>
     </div>
 </div>
+<script>
+(function() {
+    const form = document.getElementById('pelanggan-filter-form');
+    if (!form) return;
+    const debounce = (fn, delay = 400) => {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), delay);
+        };
+    };
+    const submit = debounce(() => form.submit());
+    form.querySelectorAll('input, select').forEach((el) => {
+        el.addEventListener('change', submit);
+        if (el.tagName === 'INPUT' && el.type === 'text') {
+            el.addEventListener('input', submit);
+        }
+    });
+})();
+</script>
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/../layouts/main.php';
