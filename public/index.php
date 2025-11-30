@@ -356,6 +356,8 @@ switch ($page) {
             'to' => $_GET['to'] ?? '',
             'pelanggan' => $_GET['pelanggan'] ?? '',
         ];
+        $sort = $_GET['sort'] ?? 'tanggal_lapor';
+        $dir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
         $allowedSort = [
             'tanggal_lapor' => 't.tanggal_lapor',
             'kode_keluhan' => 't.kode_keluhan',
@@ -363,21 +365,7 @@ switch ($page) {
             'prioritas' => 't.prioritas',
             'kategori' => 'k.nama_kategori'
         ];
-        $sorts = [
-            ['field' => $_GET['sort1'] ?? ($_GET['sort'] ?? 'tanggal_lapor'), 'dir' => $_GET['dir1'] ?? ($_GET['dir'] ?? 'desc')],
-            ['field' => $_GET['sort2'] ?? '', 'dir' => $_GET['dir2'] ?? '']
-        ];
-        $orderParts = [];
-        foreach ($sorts as $s) {
-            $f = $s['field'];
-            $d = strtolower($s['dir']) === 'asc' ? 'asc' : 'desc';
-            if (isset($allowedSort[$f])) {
-                $orderParts[] = $allowedSort[$f] . ' ' . $d;
-            }
-        }
-        if (empty($orderParts)) {
-            $orderParts[] = 't.tanggal_lapor DESC';
-        }
+        $sortSql = $allowedSort[$sort] ?? 't.tanggal_lapor';
         $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
 
         $where = [];
@@ -554,8 +542,6 @@ switch ($page) {
         $totalRows = (int)$countStmt->fetchColumn();
         $totalPages = max(1, (int)ceil($totalRows / $perPage));
 
-        $orderSql = implode(', ', $orderParts);
-
         $sql = "
             SELECT t.id, t.tanggal_lapor, t.kode_keluhan, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.channel, t.status_keluhan, t.prioritas, u.nama AS petugas
             FROM keluhan t
@@ -563,7 +549,7 @@ switch ($page) {
             LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
             LEFT JOIN users u ON u.id = t.updated_by
             {$whereSql}
-            ORDER BY {$orderSql}
+            ORDER BY {$sortSql} {$dir}
             LIMIT :limit OFFSET :offset
         ";
         $stmt = $db->prepare($sql);

@@ -71,41 +71,6 @@ ob_start();
                 <label class="form-label">Sampai</label>
                 <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($filters['to'] ?? '') ?>">
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Sort 1</label>
-                <select class="form-select" name="sort1">
-                    <option value="tanggal_lapor" <?= ($filters['sort1'] ?? ($filters['sort'] ?? 'tanggal_lapor')) === 'tanggal_lapor' ? 'selected' : '' ?>>Tanggal</option>
-                    <option value="kode_keluhan" <?= ($filters['sort1'] ?? '') === 'kode_keluhan' ? 'selected' : '' ?>>Kode</option>
-                    <option value="kategori" <?= ($filters['sort1'] ?? '') === 'kategori' ? 'selected' : '' ?>>Kategori</option>
-                    <option value="status_keluhan" <?= ($filters['sort1'] ?? '') === 'status_keluhan' ? 'selected' : '' ?>>Status</option>
-                    <option value="prioritas" <?= ($filters['sort1'] ?? '') === 'prioritas' ? 'selected' : '' ?>>Prioritas</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Arah 1</label>
-                <select class="form-select" name="dir1">
-                    <option value="desc" <?= (($filters['dir1'] ?? ($filters['dir'] ?? 'desc')) === 'desc') ? 'selected' : '' ?>>DESC</option>
-                    <option value="asc" <?= (($filters['dir1'] ?? '') === 'asc') ? 'selected' : '' ?>>ASC</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Sort 2</label>
-                <select class="form-select" name="sort2">
-                    <option value="">(Tidak ada)</option>
-                    <option value="tanggal_lapor" <?= ($filters['sort2'] ?? '') === 'tanggal_lapor' ? 'selected' : '' ?>>Tanggal</option>
-                    <option value="kode_keluhan" <?= ($filters['sort2'] ?? '') === 'kode_keluhan' ? 'selected' : '' ?>>Kode</option>
-                    <option value="kategori" <?= ($filters['sort2'] ?? '') === 'kategori' ? 'selected' : '' ?>>Kategori</option>
-                    <option value="status_keluhan" <?= ($filters['sort2'] ?? '') === 'status_keluhan' ? 'selected' : '' ?>>Status</option>
-                    <option value="prioritas" <?= ($filters['sort2'] ?? '') === 'prioritas' ? 'selected' : '' ?>>Prioritas</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Arah 2</label>
-                <select class="form-select" name="dir2">
-                    <option value="desc" <?= (($filters['dir2'] ?? '') === 'desc') ? 'selected' : '' ?>>DESC</option>
-                    <option value="asc" <?= (($filters['dir2'] ?? '') === 'asc') ? 'selected' : '' ?>>ASC</option>
-                </select>
-            </div>
             <div class="col-md-2 d-flex gap-2 align-items-end">
                 <button class="btn btn-danger flex-fill" type="submit">Filter</button>
                 <a class="btn btn-outline-secondary" href="?page=keluhan">Reset</a>
@@ -148,21 +113,23 @@ ob_start();
                     <tr>
                         <th><input type="checkbox" id="check-all"></th>
                         <?php
-                        $buildSort = function ($key) use ($filters) {
-                            $current = $filters['sort1'] ?? ($filters['sort'] ?? 'tanggal_lapor');
-                            $dir1 = $filters['dir1'] ?? ($filters['dir'] ?? 'desc');
-                            $nextDir = ($current === $key && $dir1 === 'asc') ? 'desc' : 'asc';
-                            $params = array_merge($_GET, ['page' => 'keluhan', 'sort1' => $key, 'dir1' => $nextDir]);
+                        $buildSort = function ($key) use ($sort, $dir) {
+                            $nextDir = ($sort === $key && $dir === 'asc') ? 'desc' : 'asc';
+                            $params = array_merge($_GET, ['page' => 'keluhan', 'sort' => $key, 'dir' => $nextDir]);
                             return '?' . http_build_query($params);
                         };
+                        $sortDirIcon = function ($key) use ($sort, $dir) {
+                            if ($sort !== $key) return '';
+                            return $dir === 'asc' ? '<i class="bi bi-arrow-up-short"></i>' : '<i class="bi bi-arrow-down-short"></i>';
+                        };
                         ?>
-                        <th><a class="text-decoration-none" href="<?= $buildSort('tanggal_lapor') ?>">Tanggal Lapor</a></th>
-                        <th><a class="text-decoration-none" href="<?= $buildSort('kode_keluhan') ?>">Kode Keluhan</a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('tanggal_lapor') ?>">Tanggal Lapor <?= $sortDirIcon('tanggal_lapor') ?></a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('kode_keluhan') ?>">Kode Keluhan <?= $sortDirIcon('kode_keluhan') ?></a></th>
                         <th>Pelanggan</th>
-                        <th><a class="text-decoration-none" href="<?= $buildSort('kategori') ?>">Kategori</a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('kategori') ?>">Kategori <?= $sortDirIcon('kategori') ?></a></th>
                         <th>Channel</th>
-                        <th><a class="text-decoration-none" href="<?= $buildSort('status_keluhan') ?>">Status</a></th>
-                        <th><a class="text-decoration-none" href="<?= $buildSort('prioritas') ?>">Prioritas</a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('status_keluhan') ?>">Status <?= $sortDirIcon('status_keluhan') ?></a></th>
+                        <th><a class="text-decoration-none" href="<?= $buildSort('prioritas') ?>">Prioritas <?= $sortDirIcon('prioritas') ?></a></th>
                         <th>Petugas</th>
                         <th>Aksi</th>
                     </tr>
