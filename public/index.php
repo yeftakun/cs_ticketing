@@ -423,27 +423,114 @@ switch ($page) {
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $filename = 'keluhan-' . date('Ymd-His') . '.csv';
-            $ctype = ($exportType === 'excel') ? 'application/vnd.ms-excel' : 'text/csv';
-            header('Content-Type: ' . $ctype);
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['Tanggal Lapor', 'Kode Keluhan', 'Nama Pelanggan', 'No HP', 'Kategori', 'Channel', 'Status', 'Prioritas', 'Petugas']);
-            foreach ($rows as $r) {
-                fputcsv($out, [
-                    $r['tanggal_lapor'],
-                    $r['kode_keluhan'],
-                    $r['nama_pelanggan'],
-                    $r['no_hp'],
-                    $r['nama_kategori'],
-                    $r['channel'],
-                    $r['status_keluhan'],
-                    $r['prioritas'],
-                    $r['petugas'],
-                ]);
+            $headers = ['Tanggal Lapor', 'Kode Keluhan', 'Nama Pelanggan', 'No HP', 'Kategori', 'Channel', 'Status', 'Prioritas', 'Petugas'];
+            if ($exportType === 'excel' || $exportType === 'xlsx') {
+                if (class_exists('ZipArchive')) {
+                    $filename = 'keluhan-' . date('Ymd-His') . '.xlsx';
+                    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+                    $xmlEscape = function ($str) {
+                        return htmlspecialchars($str ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
+                    };
+
+                    $sheetRows = [];
+                    $sheetRows[] = $headers;
+                    foreach ($rows as $r) {
+                        $sheetRows[] = [
+                            $r['tanggal_lapor'],
+                            $r['kode_keluhan'],
+                            $r['nama_pelanggan'],
+                            $r['no_hp'],
+                            $r['nama_kategori'],
+                            $r['channel'],
+                            $r['status_keluhan'],
+                            $r['prioritas'],
+                            $r['petugas'],
+                        ];
+                    }
+
+                    $sheetXml = '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+                    $rowNum = 1;
+                    foreach ($sheetRows as $row) {
+                        $sheetXml .= '<row r="' . $rowNum . '">';
+                        $colNum = 0;
+                        foreach ($row as $cell) {
+                            $sheetXml .= '<c r="" t="inlineStr"><is><t>' . $xmlEscape($cell) . '</t></is></c>';
+                            $colNum++;
+                        }
+                        $sheetXml .= '</row>';
+                        $rowNum++;
+                    }
+                    $sheetXml .= '</sheetData></worksheet>';
+
+                    $workbookXml = '<?xml version="1.0" encoding="UTF-8"?>'
+                        . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                        . ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                        . '<sheets><sheet name="Keluhan" sheetId="1" r:id="rId1"/></sheets></workbook>';
+
+                    $relsXml = '<?xml version="1.0" encoding="UTF-8"?>'
+                        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+                        . '</Relationships>';
+
+                    $wbRelsXml = '<?xml version="1.0" encoding="UTF-8"?>'
+                        . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+                        . '</Relationships>';
+
+                    $typesXml = '<?xml version="1.0" encoding="UTF-8"?>'
+                        . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                        . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                        . '<Default Extension="xml" ContentType="application/xml"/>'
+                        . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                        . '</Types>';
+
+                    $tmpFile = tempnam(sys_get_temp_dir(), 'xlsx');
+                    $zip = new ZipArchive();
+                    $zip->open($tmpFile, ZipArchive::OVERWRITE);
+                    $zip->addFromString('[Content_Types].xml', $typesXml);
+                    $zip->addEmptyDir('_rels');
+                    $zip->addFromString('_rels/.rels', $relsXml);
+                    $zip->addEmptyDir('xl');
+                    $zip->addFromString('xl/workbook.xml', $workbookXml);
+                    $zip->addEmptyDir('xl/_rels');
+                    $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRelsXml);
+                    $zip->addEmptyDir('xl/worksheets');
+                    $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+                    $zip->close();
+
+                    readfile($tmpFile);
+                    @unlink($tmpFile);
+                    exit;
+                } else {
+                    // Fallback ke CSV jika ZipArchive tidak tersedia
+                    $exportType = 'csv';
+                }
             }
-            fclose($out);
-            exit;
+            if ($exportType === 'csv') {
+                $filename = 'keluhan-' . date('Ymd-His') . '.csv';
+                header('Content-Type: text/csv');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                $out = fopen('php://output', 'w');
+                fputcsv($out, $headers);
+                foreach ($rows as $r) {
+                    fputcsv($out, [
+                        $r['tanggal_lapor'],
+                        $r['kode_keluhan'],
+                        $r['nama_pelanggan'],
+                        $r['no_hp'],
+                        $r['nama_kategori'],
+                        $r['channel'],
+                        $r['status_keluhan'],
+                        $r['prioritas'],
+                        $r['petugas'],
+                    ]);
+                }
+                fclose($out);
+                exit;
+            }
         }
 
         $pageNum = max(1, (int)($_GET['p'] ?? 1));
