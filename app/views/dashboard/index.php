@@ -1,26 +1,22 @@
 <?php
 $pageTitle = 'Dashboard Keluhan';
-$subtitle = 'Ringkasan keluhan pelanggan berdasarkan periode Januari 2025';
-$breadcrumbs = ['Home' => '#', 'Dashboard' => null];
+$subtitle = 'Ringkasan keluhan pelanggan berdasarkan data terbaru';
+$breadcrumbs = ['Home' => '?page=dashboard', 'Dashboard' => null];
 $activeMenu = 'dashboard';
-
-$stats = [
-    ['label' => 'Total Keluhan Hari Ini', 'value' => 32, 'icon' => 'bi-activity', 'variant' => 'danger', 'note' => '+12% dari kemarin'],
-    ['label' => 'Total Keluhan Bulan Ini', 'value' => 845, 'icon' => 'bi-graph-up', 'variant' => 'primary', 'note' => '+4.1% mom'],
-    ['label' => 'Keluhan Open', 'value' => 128, 'icon' => 'bi-exclamation-circle', 'variant' => 'warning', 'note' => 'Perlu prioritas'],
-    ['label' => 'Keluhan Solved', 'value' => 622, 'icon' => 'bi-check2-circle', 'variant' => 'success', 'note' => '74% tingkat penyelesaian']
-];
-
-$recentComplaints = [
-    ['tanggal' => '2025-01-12 09:15', 'kode' => 'KEL-202501-001', 'pelanggan' => 'Anisa Putri / 0812-9001-2233', 'kategori' => 'Jaringan', 'status' => 'Open', 'prioritas' => 'High'],
-    ['tanggal' => '2025-01-12 08:40', 'kode' => 'KEL-202501-002', 'pelanggan' => 'Budi Santoso / 0813-7765-9900', 'kategori' => 'Tagihan', 'status' => 'On Progress', 'prioritas' => 'Medium'],
-    ['tanggal' => '2025-01-11 16:20', 'kode' => 'KEL-202501-003', 'pelanggan' => 'Citra Dewi / 0812-4455-8877', 'kategori' => 'Produk', 'status' => 'Pending', 'prioritas' => 'Low'],
-    ['tanggal' => '2025-01-11 15:05', 'kode' => 'KEL-202501-004', 'pelanggan' => 'Dimas Aditya / 0811-7788-9900', 'kategori' => 'Layanan Data', 'status' => 'Solved', 'prioritas' => 'High'],
-    ['tanggal' => '2025-01-11 14:40', 'kode' => 'KEL-202501-005', 'pelanggan' => 'Eka Lestari / 0812-1111-6677', 'kategori' => 'Promo', 'status' => 'Closed', 'prioritas' => 'Medium'],
-];
-
 ob_start();
 ?>
+<script>
+    window.dashboardData = {
+        bar: {
+            labels: <?= json_encode($barLabels ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
+            values: <?= json_encode($barValues ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
+        },
+        trend: {
+            labels: <?= json_encode($trendLabels ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
+            values: <?= json_encode($trendValues ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
+        }
+    };
+</script>
 <div class="card border-0 mb-4">
     <div class="card-body">
         <form class="row g-3 align-items-end">
@@ -60,7 +56,14 @@ ob_start();
 </div>
 
 <div class="row g-3">
-    <?php foreach ($stats as $stat): ?>
+    <?php
+    $stats = [
+        ['label' => 'Total Keluhan Hari Ini', 'value' => $statToday ?? 0, 'icon' => 'bi-activity', 'variant' => 'danger', 'note' => 'Hari ini'],
+        ['label' => 'Total Keluhan Bulan Ini', 'value' => $statMonth ?? 0, 'icon' => 'bi-graph-up', 'variant' => 'primary', 'note' => 'Bulan berjalan'],
+        ['label' => 'Keluhan Open', 'value' => $statOpen ?? 0, 'icon' => 'bi-exclamation-circle', 'variant' => 'warning', 'note' => 'Belum ditangani'],
+        ['label' => 'Keluhan Solved', 'value' => $statSolved ?? 0, 'icon' => 'bi-check2-circle', 'variant' => 'success', 'note' => 'Terselesaikan'],
+    ];
+    foreach ($stats as $stat): ?>
         <div class="col-sm-6 col-lg-3">
             <div class="card stat-card">
                 <div class="card-body">
@@ -125,16 +128,16 @@ ob_start();
                 <tbody>
                     <?php foreach ($recentComplaints as $item): ?>
                         <tr>
-                            <td><?= htmlspecialchars($item['tanggal']) ?></td>
-                            <td class="fw-semibold"><?= htmlspecialchars($item['kode']) ?></td>
-                            <td><?= htmlspecialchars($item['pelanggan']) ?></td>
-                            <td><?= htmlspecialchars($item['kategori']) ?></td>
-                            <td><span class="badge status-badge <?= str_replace(' ', '', $item['status']) ?>"><?= htmlspecialchars($item['status']) ?></span></td>
+                            <td><?= htmlspecialchars($item['tanggal_lapor']) ?></td>
+                            <td class="fw-semibold"><?= htmlspecialchars($item['kode_keluhan']) ?></td>
+                            <td><?= htmlspecialchars(($item['nama_pelanggan'] ?? '-') . ' / ' . ($item['no_hp'] ?? '-')) ?></td>
+                            <td><?= htmlspecialchars($item['nama_kategori'] ?? '-') ?></td>
+                            <td><span class="badge status-badge <?= str_replace(' ', '', $item['status_keluhan']) ?>"><?= htmlspecialchars($item['status_keluhan']) ?></span></td>
                             <td><span class="badge priority-badge <?= $item['prioritas'] ?>"><?= htmlspecialchars($item['prioritas']) ?></span></td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary">Detail</button>
-                                    <button class="btn btn-outline-danger">Tindak</button>
+                                    <a class="btn btn-outline-secondary" href="?page=keluhan-show&id=<?= (int)$item['id'] ?>">Detail</a>
+                                    <a class="btn btn-outline-danger" href="?page=keluhan-edit&id=<?= (int)$item['id'] ?>">Tindak</a>
                                 </div>
                             </td>
                         </tr>

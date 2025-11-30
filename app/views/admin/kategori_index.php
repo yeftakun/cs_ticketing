@@ -1,23 +1,44 @@
 <?php
 $pageTitle = 'Master Kategori Keluhan';
 $subtitle = 'Kelola kategori dan deskripsi singkat';
-$breadcrumbs = ['Home' => '#', 'Admin' => '#', 'Kategori Keluhan' => null];
+$breadcrumbs = ['Home' => '?page=dashboard', 'Admin' => '#', 'Kategori Keluhan' => null];
 $activeMenu = 'kategori';
-
-$kategori = [
-    ['nama' => 'Jaringan', 'deskripsi' => 'Gangguan sinyal, telepon, SMS, data', 'jumlah' => 142],
-    ['nama' => 'Tagihan', 'deskripsi' => 'Kesalahan tagihan, paket tidak sesuai', 'jumlah' => 88],
-    ['nama' => 'Layanan Data', 'deskripsi' => 'Kecepatan internet, kuota, FUP', 'jumlah' => 64],
-    ['nama' => 'Promo', 'deskripsi' => 'Promo tidak masuk, syarat ketentuan', 'jumlah' => 34],
-];
-
 ob_start();
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h6 class="text-muted mb-0">Daftar kategori aktif</h6>
+<div class="card border-0 mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h6 class="text-muted mb-0"><?= $editKategori ? 'Edit Kategori' : 'Tambah Kategori' ?></h6>
+            </div>
+        </div>
+        <?php if (!empty($errors)): ?>
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    <?php foreach ($errors as $err): ?>
+                        <li><?= htmlspecialchars($err) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+        <form class="row g-3" method="post" action="?page=admin-kategori<?= $editKategori ? '&id=' . (int)$editKategori['id'] : '' ?>">
+            <input type="hidden" name="id" value="<?= $editKategori['id'] ?? '' ?>">
+            <div class="col-md-4">
+                <label class="form-label">Nama Kategori</label>
+                <input type="text" name="nama" class="form-control" value="<?= htmlspecialchars($_POST['nama'] ?? $editKategori['nama_kategori'] ?? '') ?>" required>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Deskripsi</label>
+                <input type="text" name="deskripsi" class="form-control" value="<?= htmlspecialchars($_POST['deskripsi'] ?? $editKategori['deskripsi'] ?? '') ?>">
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-danger" type="submit"><?= $editKategori ? 'Simpan Perubahan' : 'Tambah' ?></button>
+                <?php if ($editKategori): ?>
+                    <a class="btn btn-outline-secondary" href="?page=admin-kategori">Batal Edit</a>
+                <?php endif; ?>
+            </div>
+        </form>
     </div>
-    <button class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Kategori</button>
 </div>
 
 <div class="card">
@@ -35,17 +56,19 @@ ob_start();
                 <tbody>
                     <?php foreach ($kategori as $row): ?>
                         <tr>
-                            <td class="fw-semibold"><?= htmlspecialchars($row['nama']) ?></td>
+                            <td class="fw-semibold"><?= htmlspecialchars($row['nama_kategori']) ?></td>
                             <td><?= htmlspecialchars($row['deskripsi']) ?></td>
                             <td><span class="badge bg-light text-dark"><?= htmlspecialchars($row['jumlah']) ?></span></td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-danger">Edit</button>
-                                    <button class="btn btn-outline-secondary">Hapus</button>
+                                    <a class="btn btn-outline-danger" href="?page=admin-kategori&id=<?= (int)$row['id'] ?>">Edit</a>
                                 </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if (empty($kategori)): ?>
+                        <tr><td colspan="4" class="text-center text-muted">Belum ada kategori.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>

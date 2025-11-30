@@ -1,43 +1,39 @@
 <?php
 $pageTitle = 'Data Pelanggan';
 $subtitle = 'Monitoring pelanggan dan riwayat keluhan';
-$breadcrumbs = ['Home' => '#', 'Pelanggan' => null];
+$breadcrumbs = ['Home' => '?page=dashboard', 'Pelanggan' => null];
 $activeMenu = 'pelanggan';
-
-$pelanggan = [
-    ['nama' => 'Anisa Putri', 'no_hp' => '0812-9001-2233', 'email' => 'anisa@mail.com', 'kota' => 'Jakarta', 'jumlah' => 3],
-    ['nama' => 'Budi Santoso', 'no_hp' => '0813-7765-9900', 'email' => 'budi@mail.com', 'kota' => 'Bandung', 'jumlah' => 1],
-    ['nama' => 'Citra Dewi', 'no_hp' => '0812-4455-8877', 'email' => 'citra@mail.com', 'kota' => 'Surabaya', 'jumlah' => 4],
-    ['nama' => 'Dimas Aditya', 'no_hp' => '0811-7788-9900', 'email' => 'dimas@mail.com', 'kota' => 'Jakarta', 'jumlah' => 2],
-];
-
 ob_start();
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h6 class="text-muted mb-0">Kelola data pelanggan</h6>
     </div>
-    <a href="#" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Pelanggan</a>
+    <a href="?page=pelanggan-form" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Pelanggan</a>
 </div>
 
 <div class="card border-0 mb-3">
     <div class="card-body">
-        <form class="row gy-2 gx-3 align-items-end">
+        <form class="row gy-2 gx-3 align-items-end" method="get">
+            <input type="hidden" name="page" value="pelanggan">
             <div class="col-md-6">
                 <label class="form-label">Cari Pelanggan</label>
-                <input type="text" class="form-control" placeholder="Cari nama / no HP / kota">
+                <input type="text" name="q" class="form-control" placeholder="Cari nama / no HP / kota" value="<?= htmlspecialchars($filters['q'] ?? '') ?>">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Kota</label>
-                <select class="form-select">
-                    <option>Semua</option>
-                    <option>Jakarta</option>
-                    <option>Bandung</option>
-                    <option>Surabaya</option>
+                <select class="form-select" name="kota">
+                    <option value="">Semua</option>
+                    <?php
+                    $kotaList = array_unique(array_filter(array_map(fn($p) => $p['kota'] ?? '', $pelanggan)));
+                    sort($kotaList);
+                    foreach ($kotaList as $kotaOpt): ?>
+                        <option value="<?= htmlspecialchars($kotaOpt) ?>" <?= ($filters['kota'] ?? '') === $kotaOpt ? 'selected' : '' ?>><?= htmlspecialchars($kotaOpt) ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="col-md-3 d-grid">
-                <button class="btn btn-danger" type="button">Filter</button>
+                <button class="btn btn-danger" type="submit">Filter</button>
             </div>
         </form>
     </div>
@@ -60,19 +56,22 @@ ob_start();
                 <tbody>
                     <?php foreach ($pelanggan as $row): ?>
                         <tr>
-                            <td class="fw-semibold"><?= htmlspecialchars($row['nama']) ?></td>
+                            <td class="fw-semibold"><?= htmlspecialchars($row['nama_pelanggan']) ?></td>
                             <td><?= htmlspecialchars($row['no_hp']) ?></td>
-                            <td><?= htmlspecialchars($row['email']) ?></td>
-                            <td><?= htmlspecialchars($row['kota']) ?></td>
-                            <td><a href="#" class="text-decoration-none fw-semibold"><?= htmlspecialchars($row['jumlah']) ?> keluhan</a></td>
+                            <td><?= htmlspecialchars($row['email'] ?? '-') ?></td>
+                            <td><?= htmlspecialchars($row['kota'] ?? '-') ?></td>
+                            <td><span class="fw-semibold"><?= (int)($row['jumlah_keluhan'] ?? 0) ?></span> keluhan</td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary">Detail</button>
-                                    <button class="btn btn-outline-danger">Edit</button>
+                                    <a class="btn btn-outline-secondary" href="?page=keluhan&pelanggan=<?= (int)$row['id'] ?>">Keluhan</a>
+                                    <a class="btn btn-outline-danger" href="?page=pelanggan-form&id=<?= (int)$row['id'] ?>">Edit</a>
                                 </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if (empty($pelanggan)): ?>
+                        <tr><td colspan="6" class="text-center text-muted">Belum ada data.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
