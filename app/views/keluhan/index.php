@@ -23,7 +23,10 @@ ob_start();
             <input type="hidden" name="page" value="keluhan">
             <div class="col-md-4">
                 <label class="form-label">Cari</label>
-                <input type="text" name="q" class="form-control" placeholder="Cari kode keluhan / no HP / nama pelanggan" value="<?= htmlspecialchars($filters['q'] ?? '') ?>">
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control" placeholder="Cari kode keluhan / no HP / nama pelanggan" value="<?= htmlspecialchars($filters['q'] ?? '') ?>">
+                    <button class="btn btn-danger" type="submit">Cari</button>
+                </div>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Kategori</label>
@@ -309,11 +312,8 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     };
     const submit = debounce(() => form.submit());
-    form.querySelectorAll('input, select').forEach((el) => {
+    form.querySelectorAll('select, input[type="date"]').forEach((el) => {
         el.addEventListener('change', submit);
-        if (el.tagName === 'INPUT' && el.type === 'text') {
-            el.addEventListener('input', submit);
-        }
     });
 })();
 </script>
