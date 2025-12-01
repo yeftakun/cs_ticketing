@@ -57,3 +57,22 @@ CREATE TABLE keluhan_log (
     FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=INNODB;
+
+-- Perubahan
+
+-- Tambah kolom must_change_password pada tabel users
+ALTER TABLE users
+  ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0
+  AFTER is_active;
+
+-- (Opsional) tabel password_resets untuk audit reset
+CREATE TABLE password_resets (
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNSIGNED NOT NULL,
+    reset_by INT UNSIGNED NOT NULL,
+    temp_password_hash VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    used_at DATETIME NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (reset_by) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
