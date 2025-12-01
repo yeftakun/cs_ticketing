@@ -119,13 +119,19 @@ if ($page === 'forgot-password') {
                 $stmt->execute([':u' => $username]);
                 $u = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($u) {
-                    // reset_by diisi user sendiri agar lolos FK jika kolom NOT NULL, temp_password_hash kosong jika NOT NULL
-                    $ins = $db->prepare("INSERT INTO password_resets (user_id, reset_by, temp_password_hash, created_at) VALUES (:uid, :reset_by, :tmp, NOW())");
-                    $ins->execute([
-                        ':uid' => $u['id'],
-                        ':reset_by' => $u['id'],
-                        ':tmp' => '',
-                    ]);
+                    // Cek jika sudah ada permintaan pending (used_at NULL dan temp_password_hash kosong)
+                    $chk = $db->prepare("SELECT COUNT(*) FROM password_resets WHERE user_id = :uid AND used_at IS NULL AND (temp_password_hash IS NULL OR temp_password_hash = '')");
+                    $chk->execute([':uid' => $u['id']]);
+                    $pending = (int)$chk->fetchColumn();
+                    if ($pending === 0) {
+                        // reset_by diisi user sendiri agar lolos FK jika kolom NOT NULL, temp_password_hash kosong jika NOT NULL
+                        $ins = $db->prepare("INSERT INTO password_resets (user_id, reset_by, temp_password_hash, created_at) VALUES (:uid, :reset_by, :tmp, NOW())");
+                        $ins->execute([
+                            ':uid' => $u['id'],
+                            ':reset_by' => $u['id'],
+                            ':tmp' => '',
+                        ]);
+                    }
                 }
                 $success = 'Permintaan reset telah dicatat. Hubungi admin untuk mendapatkan password baru.';
             } catch (PDOException $e) {
@@ -1160,7 +1166,7 @@ switch ($page) {
         $users = $stmt->fetchAll();
         $pendingResets = [];
         try {
-            $q = $db->query("SELECT pr.id, pr.user_id, pr.created_at, u.nama, u.username, u.role FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE (pr.temp_password_hash IS NULL OR pr.temp_password_hash = '') ORDER BY pr.created_at DESC");
+            $q = $db->query("SELECT pr.id, pr.user_id, pr.created_at, u.nama, u.username, u.role FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE (pr.temp_password_hash IS NULL OR pr.temp_password_hash = '') AND pr.used_at IS NULL ORDER BY pr.created_at DESC");
             $pendingResets = $q->fetchAll();
         } catch (PDOException $e) {
             $pendingResets = [];
