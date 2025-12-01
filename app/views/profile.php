@@ -3,6 +3,7 @@ $pageTitle = 'Profil Saya';
 $subtitle = 'Lihat dan perbarui informasi akun';
 $breadcrumbs = ['Home' => '?page=dashboard', 'Profil' => null];
 $activeMenu = '';
+// role guard: handled di router
 ob_start();
 ?>
 <div class="row">

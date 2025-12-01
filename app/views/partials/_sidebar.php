@@ -25,12 +25,16 @@ $isActive = function (string $menu) use ($activeMenu): string {
             <i class="bi bi-people-fill"></i> Pelanggan
         </a>
 
-        <div class="section-title mt-3">Admin</div>
-        <a class="nav-link sub-link <?= $isActive('users') ?>" href="?page=admin-users">
-            <i class="bi bi-person-gear"></i> User Management
-        </a>
-        <a class="nav-link sub-link <?= $isActive('kategori') ?>" href="?page=admin-kategori">
-            <i class="bi bi-tags-fill"></i> Kategori Keluhan
-        </a>
+        <?php if (($currentUser['role'] ?? '') === 'admin' || ($currentUser['role'] ?? '') === 'supervisor'): ?>
+            <div class="section-title mt-3">Admin</div>
+            <?php if (($currentUser['role'] ?? '') === 'admin'): ?>
+                <a class="nav-link sub-link <?= $isActive('users') ?>" href="?page=admin-users">
+                    <i class="bi bi-person-gear"></i> User Management
+                </a>
+            <?php endif; ?>
+            <a class="nav-link sub-link <?= $isActive('kategori') ?>" href="?page=admin-kategori">
+                <i class="bi bi-tags-fill"></i> Kategori Keluhan
+            </a>
+        <?php endif; ?>
     </div>
 </aside>

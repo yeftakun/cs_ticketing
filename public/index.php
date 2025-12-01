@@ -7,6 +7,20 @@ session_start([
     'cookie_httponly' => true,
 ]);
 
+function forbidden(string $msg = 'Forbidden'): void
+{
+    http_response_code(403);
+    echo $msg;
+    exit;
+}
+
+function requireRole(array $allowedRoles, array $currentUser): void
+{
+    if (!in_array($currentUser['role'] ?? '', $allowedRoles, true)) {
+        forbidden('Tidak memiliki akses.');
+    }
+}
+
 function redirect(string $url): void
 {
     header("Location: {$url}");
@@ -293,12 +307,23 @@ switch ($page) {
         break;
 
     case 'keluhan':
+        requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         // Quick status update from list (modal)
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick-status') {
             $id = (int)($_POST['id'] ?? 0);
             $statusBaru = $_POST['status_baru'] ?? '';
             $catatan = trim($_POST['catatan'] ?? '');
-            if ($id > 0 && in_array($statusBaru, $statusList, true) && $catatan !== '') {
+            if ($currentUser['role'] === 'agent' && $id > 0) {
+                $ownerStmt = $db->prepare("SELECT created_by FROM keluhan WHERE id = :id LIMIT 1");
+                $ownerStmt->execute([':id' => $id]);
+                $ownerId = $ownerStmt->fetchColumn();
+                if ((int)$ownerId !== (int)$currentUser['id']) {
+                    $error = 'Tidak boleh mengubah keluhan milik user lain.';
+                }
+            }
+            if (!empty($error)) {
+                // skip processing
+            } elseif ($id > 0 && in_array($statusBaru, $statusList, true) && $catatan !== '') {
                 try {
                     $now = date('Y-m-d H:i:s');
                     $db->beginTransaction();
@@ -343,7 +368,22 @@ switch ($page) {
             $statusBaru = $_POST['status_baru'] ?? '';
             $catatan = trim($_POST['catatan'] ?? '');
             $idsInt = array_values(array_filter(array_map('intval', $ids)));
-            if (!empty($idsInt) && in_array($statusBaru, $statusList, true) && $catatan !== '') {
+            if ($currentUser['role'] === 'agent' && !empty($idsInt)) {
+                $ph = implode(',', array_fill(0, count($idsInt), '?'));
+                $chk = $db->prepare("SELECT COUNT(*) FROM keluhan WHERE id IN ($ph) AND created_by = ?");
+                $bindIdx = 1;
+                foreach ($idsInt as $val) {
+                    $chk->bindValue($bindIdx, $val, PDO::PARAM_INT);
+                    $bindIdx++;
+                }
+                $chk->bindValue($bindIdx, $currentUser['id'], PDO::PARAM_INT);
+                $chk->execute();
+                $owned = (int)$chk->fetchColumn();
+                if ($owned !== count($idsInt)) {
+                    $error = 'Tidak boleh bulk update keluhan milik user lain.';
+                }
+            }
+            if (!empty($idsInt) && in_array($statusBaru, $statusList, true) && $catatan !== '' && empty($error)) {
                 try {
                     $db->beginTransaction();
                     $now = date('Y-m-d H:i:s');
@@ -618,6 +658,7 @@ switch ($page) {
         break;
 
     case 'keluhan-create':
+        requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
         $errors = [];
 
@@ -684,6 +725,7 @@ switch ($page) {
         break;
 
     case 'keluhan-edit':
+        requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) redirect('?page=keluhan');
 
@@ -698,6 +740,9 @@ switch ($page) {
         $stmt->execute([':id' => $id]);
         $keluhan = $stmt->fetch();
         if (!$keluhan) redirect('?page=keluhan');
+        if ($currentUser['role'] === 'agent' && (int)$keluhan['created_by'] !== (int)$currentUser['id']) {
+            forbidden('Tidak boleh mengedit keluhan milik user lain.');
+        }
 
         $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
         $errors = [];
@@ -742,6 +787,7 @@ switch ($page) {
         break;
 
     case 'keluhan-show':
+        requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) redirect('?page=keluhan');
 
@@ -769,7 +815,9 @@ switch ($page) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statusBaru = $_POST['status_baru'] ?? '';
             $catatan = trim($_POST['catatan'] ?? '');
-            if (!in_array($statusBaru, $statusList, true)) {
+            if ($currentUser['role'] === 'agent' && (int)$keluhan['created_by'] !== (int)$currentUser['id']) {
+                $error = 'Tidak boleh mengubah keluhan milik user lain.';
+            } elseif (!in_array($statusBaru, $statusList, true)) {
                 $error = 'Status tidak valid.';
             } elseif ($catatan === '') {
                 $error = 'Catatan wajib diisi.';
@@ -860,6 +908,7 @@ switch ($page) {
         break;
 
     case 'pelanggan':
+        requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         $filters = [
             'q' => trim($_GET['q'] ?? ''),
             'kota' => trim($_GET['kota'] ?? ''),
@@ -889,6 +938,7 @@ switch ($page) {
         break;
 
     case 'pelanggan-form':
+        requireRole(['admin', 'supervisor'], $currentUser);
         $id = isset($_GET['id']) ? (int)$_GET['id'] : null;
         $pelanggan = ['nama' => '', 'no_hp' => '', 'email' => '', 'kota' => ''];
         $isEdit = false;
@@ -933,8 +983,12 @@ switch ($page) {
         break;
 
     case 'admin-kategori':
+        requireRole(['admin', 'supervisor'], $currentUser);
         $errors = [];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (($currentUser['role'] ?? '') !== 'admin') {
+                forbidden('Hanya admin yang boleh mengubah kategori.');
+            }
             $id = (int)($_POST['id'] ?? 0);
             $nama = trim($_POST['nama'] ?? '');
             $deskripsi = trim($_POST['deskripsi'] ?? '');
@@ -966,6 +1020,7 @@ switch ($page) {
         break;
 
     case 'admin-users':
+        requireRole(['admin'], $currentUser);
         $errors = [];
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $action = $_POST['action'] ?? '';
