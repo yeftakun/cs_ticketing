@@ -916,8 +916,11 @@ switch ($page) {
         $where = [];
         $params = [];
         if ($filters['q'] !== '') {
-            $where[] = "(p.nama_pelanggan LIKE :q OR p.no_hp LIKE :q OR p.kota LIKE :q)";
-            $params[':q'] = '%' . $filters['q'] . '%';
+            $where[] = "(p.nama_pelanggan LIKE :q_nama OR p.no_hp LIKE :q_hp OR p.kota LIKE :q_kota)";
+            $like = '%' . $filters['q'] . '%';
+            $params[':q_nama'] = $like;
+            $params[':q_hp'] = $like;
+            $params[':q_kota'] = $like;
         }
         if ($filters['kota'] !== '') {
             $where[] = "p.kota = :kota";
