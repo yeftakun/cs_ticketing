@@ -37,6 +37,10 @@ ob_start();
                 <label class="form-label">Password</label>
                 <input type="password" name="password" class="form-control" placeholder="Minimal 6 karakter" required>
             </div>
+            <div class="col-md-3">
+                <label class="form-label">Kontak</label>
+                <input type="text" name="kontak" class="form-control" value="<?= htmlspecialchars($_POST['kontak'] ?? '') ?>" placeholder="No HP / Email" required>
+            </div>
             <div class="col-md-2">
                 <label class="form-label">Role</label>
                 <select class="form-select" name="role">
@@ -66,6 +70,7 @@ ob_start();
                     <tr>
                         <th>Nama</th>
                         <th>Username</th>
+                        <th>Kontak</th>
                         <th>Role</th>
                         <th>Status</th>
                         <th>Aksi</th>
@@ -76,6 +81,7 @@ ob_start();
                         <tr>
                             <td class="fw-semibold"><?= htmlspecialchars($user['nama']) ?></td>
                             <td><?= htmlspecialchars($user['username']) ?></td>
+                            <td><?= htmlspecialchars($user['kontak'] ?? '-') ?></td>
                             <td><span class="badge bg-light text-dark text-uppercase"><?= htmlspecialchars($user['role']) ?></span></td>
                             <td>
                                 <?php if ((int)$user['is_active'] === 1): ?>

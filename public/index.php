@@ -111,12 +111,13 @@ if ($page === 'login') {
 if ($page === 'forgot-password') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
-        if ($username === '') {
-            $error = 'Username wajib diisi.';
+        $kontak = trim($_POST['kontak'] ?? '');
+        if ($username === '' || $kontak === '') {
+            $error = 'Username dan kontak wajib diisi.';
         } else {
             try {
-                $stmt = $db->prepare("SELECT id FROM users WHERE username = :u AND is_active = 1 LIMIT 1");
-                $stmt->execute([':u' => $username]);
+                $stmt = $db->prepare("SELECT id FROM users WHERE username = :u AND kontak = :k AND is_active = 1 LIMIT 1");
+                $stmt->execute([':u' => $username, ':k' => $kontak]);
                 $u = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($u) {
                     // Cek jika sudah ada permintaan pending (used_at NULL dan temp_password_hash kosong)
@@ -133,6 +134,7 @@ if ($page === 'forgot-password') {
                         ]);
                     }
                 }
+                // Pesan selalu generik untuk cegah enumerasi
                 $success = 'Permintaan reset telah dicatat. Hubungi admin untuk mendapatkan password baru.';
             } catch (PDOException $e) {
                 $error = 'Gagal memproses permintaan: ' . $e->getMessage();
@@ -1115,8 +1117,8 @@ switch ($page) {
                 $password = $_POST['password'] ?? '';
                 $role = $_POST['role'] ?? 'agent';
                 $aktif = isset($_POST['aktif']) ? 1 : 0;
-                if ($nama === '' || $username === '' || $password === '') {
-                    $errors[] = 'Nama, username, dan password wajib diisi.';
+                if ($nama === '' || $username === '' || $password === '' || trim($_POST['kontak'] ?? '') === '') {
+                    $errors[] = 'Nama, username, password, dan kontak wajib diisi.';
                 } elseif (!in_array($role, ['agent', 'supervisor', 'admin'], true)) {
                     $errors[] = 'Role tidak valid.';
                 } else {
@@ -1126,8 +1128,8 @@ switch ($page) {
                         $errors[] = 'Username sudah digunakan.';
                     } else {
                         $hash = password_hash($password, PASSWORD_BCRYPT);
-                        $ins = $db->prepare("INSERT INTO users (nama, username, password_hash, role, is_active) VALUES (:nama, :username, :hash, :role, :aktif)");
-                        $ins->execute([':nama' => $nama, ':username' => $username, ':hash' => $hash, ':role' => $role, ':aktif' => $aktif]);
+                        $ins = $db->prepare("INSERT INTO users (nama, username, kontak, password_hash, role, is_active) VALUES (:nama, :username, :kontak, :hash, :role, :aktif)");
+                        $ins->execute([':nama' => $nama, ':username' => $username, ':kontak' => trim($_POST['kontak']), ':hash' => $hash, ':role' => $role, ':aktif' => $aktif]);
                         redirect('?page=admin-users');
                     }
                 }
@@ -1161,7 +1163,7 @@ switch ($page) {
                 }
             }
         }
-        $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id <> :me ORDER BY nama");
+        $stmt = $db->prepare("SELECT id, nama, username, kontak, role, is_active FROM users WHERE id <> :me ORDER BY nama");
         $stmt->execute([':me' => $currentUser['id']]);
         $users = $stmt->fetchAll();
         $pendingResets = [];

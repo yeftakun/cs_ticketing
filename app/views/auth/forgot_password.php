@@ -8,7 +8,7 @@ ob_start();
             <i class="bi bi-shield-lock text-danger fs-3"></i>
         </div>
         <h5 class="mb-1 fw-bold">Permintaan Reset Password</h5>
-        <div class="text-muted small">Masukkan username Anda, permintaan akan dikirim ke admin</div>
+        <div class="text-muted small">Masukkan username dan kontak terdaftar, permintaan akan dikirim ke admin</div>
     </div>
     <div class="card-body p-0">
         <?php if (!empty($error)): ?>
@@ -25,6 +25,11 @@ ob_start();
             <div class="mb-3">
                 <label class="form-label">Username</label>
                 <input type="text" name="username" class="form-control" placeholder="Masukkan username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Kontak (No HP/Email)</label>
+                <input type="text" name="kontak" class="form-control" placeholder="Kontak terdaftar" value="<?= htmlspecialchars($_POST['kontak'] ?? '') ?>" required>
+                <div class="form-text">Masukkan kontak yang terdaftar untuk verifikasi.</div>
             </div>
             <div class="d-grid">
                 <button class="btn btn-danger btn-lg" type="submit">Kirim Permintaan</button>
