@@ -30,7 +30,7 @@ ob_start();
                     <input class="form-check-input" type="checkbox" id="remember">
                     <label class="form-check-label" for="remember">Ingat saya</label>
                 </div>
-                <a href="#" class="small text-decoration-none">Lupa password?</a>
+                <a href="?page=forgot-password" class="small text-decoration-none">Lupa password?</a>
             </div>
             <div class="d-grid">
                 <button class="btn btn-danger btn-lg" type="submit">Login</button>

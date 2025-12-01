@@ -21,6 +21,17 @@ function requireRole(array $allowedRoles, array $currentUser): void
     }
 }
 
+function generateTempPassword(int $min = 10, int $max = 12): string
+{
+    $len = random_int($min, $max);
+    $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@$!%*?&';
+    $out = '';
+    for ($i = 0; $i < $len; $i++) {
+        $out .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+    return $out;
+}
+
 function redirect(string $url): void
 {
     header("Location: {$url}");
@@ -66,7 +77,7 @@ if ($page === 'login') {
             $error = 'Username dan password wajib diisi.';
         } else {
             try {
-                $stmt = $db->prepare("SELECT id, nama, username, password_hash, role FROM users WHERE username = :username AND is_active = 1 LIMIT 1");
+                $stmt = $db->prepare("SELECT id, nama, username, password_hash, role, must_change_password FROM users WHERE username = :username AND is_active = 1 LIMIT 1");
                 $stmt->execute([':username' => $username]);
                 $user = $stmt->fetch();
 
@@ -77,7 +88,11 @@ if ($page === 'login') {
                         'name' => $user['nama'] ?: $user['username'],
                         'username' => $user['username'],
                         'role' => $user['role'],
+                        'must_change_password' => (int)($user['must_change_password'] ?? 0),
                     ];
+                    if (!empty($user['must_change_password'])) {
+                        redirect('?page=change-password');
+                    }
                     redirect('?page=dashboard');
                 } else {
                     $error = 'Username atau password salah.';
@@ -92,9 +107,45 @@ if ($page === 'login') {
     exit;
 }
 
+// Lupa password (request ke admin)
+if ($page === 'forgot-password') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $username = trim($_POST['username'] ?? '');
+        if ($username === '') {
+            $error = 'Username wajib diisi.';
+        } else {
+            try {
+                $stmt = $db->prepare("SELECT id FROM users WHERE username = :u AND is_active = 1 LIMIT 1");
+                $stmt->execute([':u' => $username]);
+                $u = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($u) {
+                    try {
+                        $ins = $db->prepare("INSERT INTO password_resets (user_id, reset_by, temp_password_hash, created_at) VALUES (:uid, NULL, NULL, NOW())");
+                        $ins->execute([':uid' => $u['id']]);
+                    } catch (PDOException $e) {
+                        // jika table tidak ada, tetap tampilkan pesan generik
+                    }
+                }
+                $success = 'Permintaan reset telah dicatat. Hubungi admin untuk mendapatkan password baru.';
+            } catch (PDOException $e) {
+                $error = 'Gagal memproses permintaan.';
+            }
+        }
+    }
+    require __DIR__ . '/../app/views/auth/forgot_password.php';
+    exit;
+}
+
 // Proteksi halaman lain
-if (!$loggedIn) {
+if (!$loggedIn && !in_array($page, ['login', 'forgot-password'], true)) {
     redirect('?page=login');
+}
+
+// Paksa ganti password jika diperlukan
+if ($loggedIn && !in_array($page, ['change-password', 'logout', 'profile'], true)) {
+    if (!empty($currentUser['must_change_password'])) {
+        redirect('?page=change-password');
+    }
 }
 
 // AJAX cek pelanggan
@@ -141,7 +192,9 @@ switch ($page) {
                 $sql = "UPDATE users SET nama = :nama";
                 if ($password !== '') {
                     $sql .= ", password_hash = :pwd";
+                    $sql .= ", must_change_password = 0";
                     $params[':pwd'] = password_hash($password, PASSWORD_BCRYPT);
+                    $_SESSION['user']['must_change_password'] = 0;
                 }
                 $sql .= " WHERE id = :id";
                 $upd = $db->prepare($sql);
@@ -907,6 +960,27 @@ switch ($page) {
         require __DIR__ . '/../app/views/keluhan/show.php';
         break;
 
+    case 'change-password':
+        if (!$loggedIn) redirect('?page=login');
+        $errors = [];
+        $success = null;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $password = $_POST['password'] ?? '';
+            $confirm = $_POST['password_confirm'] ?? '';
+            if (strlen($password) < 6) $errors[] = 'Password minimal 6 karakter.';
+            if ($password !== $confirm) $errors[] = 'Konfirmasi tidak cocok.';
+            if (empty($errors)) {
+                $hash = password_hash($password, PASSWORD_BCRYPT);
+                $upd = $db->prepare("UPDATE users SET password_hash = :pwd, must_change_password = 0 WHERE id = :id");
+                $upd->execute([':pwd' => $hash, ':id' => $currentUser['id']]);
+                $_SESSION['user']['must_change_password'] = 0;
+                $success = 'Password berhasil diperbarui.';
+                redirect('?page=dashboard');
+            }
+        }
+        require __DIR__ . '/../app/views/change_password.php';
+        break;
+
     case 'pelanggan':
         requireRole(['admin', 'supervisor', 'agent'], $currentUser);
         $filters = [
@@ -1025,6 +1099,7 @@ switch ($page) {
     case 'admin-users':
         requireRole(['admin'], $currentUser);
         $errors = [];
+        $resetInfo = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $action = $_POST['action'] ?? '';
             if ($action === 'create') {
@@ -1054,11 +1129,41 @@ switch ($page) {
                 $stmt = $db->prepare("UPDATE users SET is_active = 1 - is_active WHERE id = :id");
                 $stmt->execute([':id' => $id]);
                 redirect('?page=admin-users');
+            } elseif ($action === 'reset') {
+                $id = (int)($_POST['id'] ?? 0);
+                $reqId = (int)($_POST['request_id'] ?? 0);
+                if ($id === (int)$currentUser['id']) {
+                    $errors[] = 'Tidak dapat reset password diri sendiri.';
+                } else {
+                    $tempPass = generateTempPassword();
+                    $hash = password_hash($tempPass, PASSWORD_BCRYPT);
+                    $upd = $db->prepare("UPDATE users SET password_hash = :pwd, must_change_password = 1 WHERE id = :id");
+                    $upd->execute([':pwd' => $hash, ':id' => $id]);
+                    try {
+                        if ($reqId > 0) {
+                            $updReq = $db->prepare("UPDATE password_resets SET reset_by = :by, temp_password_hash = :hash, used_at = NOW() WHERE id = :rid");
+                            $updReq->execute([':by' => $currentUser['id'], ':hash' => $hash, ':rid' => $reqId]);
+                        } else {
+                            $ins = $db->prepare("INSERT INTO password_resets (user_id, reset_by, temp_password_hash, created_at) VALUES (:uid, :by, :hash, NOW())");
+                            $ins->execute([':uid' => $id, ':by' => $currentUser['id'], ':hash' => $hash]);
+                        }
+                    } catch (PDOException $e) {
+                        // abaikan jika table tidak ada
+                    }
+                    $resetInfo = ['user_id' => $id, 'temp' => $tempPass];
+                }
             }
         }
         $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id <> :me ORDER BY nama");
         $stmt->execute([':me' => $currentUser['id']]);
         $users = $stmt->fetchAll();
+        $pendingResets = [];
+        try {
+            $q = $db->query("SELECT pr.id, pr.user_id, pr.created_at, u.nama, u.username, u.role FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE pr.reset_by IS NULL ORDER BY pr.created_at DESC");
+            $pendingResets = $q->fetchAll();
+        } catch (PDOException $e) {
+            $pendingResets = [];
+        }
         require __DIR__ . '/../app/views/admin/users_index.php';
         break;
 

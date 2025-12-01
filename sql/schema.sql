@@ -76,3 +76,8 @@ CREATE TABLE password_resets (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (reset_by) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tambah kolom kontak pada tabel users
+
+ALTER TABLE users
+ADD COLUMN kontak VARCHAR(100) NOT NULL AFTER nama;

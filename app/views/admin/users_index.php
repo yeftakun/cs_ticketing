@@ -5,6 +5,12 @@ $breadcrumbs = ['Home' => '?page=dashboard', 'Admin' => '#', 'User Management' =
 $activeMenu = 'users';
 ob_start();
 ?>
+<?php if (!empty($resetInfo)): ?>
+    <div class="alert alert-success">
+        Password sementara untuk user ID <?= (int)$resetInfo['user_id'] ?>: <strong><?= htmlspecialchars($resetInfo['temp']) ?></strong>
+        <br><small>Berikan secara internal, user wajib ganti password saat login.</small>
+    </div>
+<?php endif; ?>
 <div class="card border-0 mb-3">
     <div class="card-body">
         <h6 class="text-muted mb-3">Tambah User</h6>
@@ -84,6 +90,11 @@ ob_start();
                                     <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
                                     <button class="btn btn-outline-secondary btn-sm" type="submit"><?= (int)$user['is_active'] === 1 ? 'Nonaktifkan' : 'Aktifkan' ?></button>
                                 </form>
+                                <form class="d-inline" method="post" action="?page=admin-users" onsubmit="return confirm('Reset password user ini?')">
+                                    <input type="hidden" name="action" value="reset">
+                                    <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
+                                    <button class="btn btn-outline-warning btn-sm" type="submit">Reset Password</button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -95,6 +106,45 @@ ob_start();
         </div>
     </div>
 </div>
+
+<?php if (!empty($pendingResets)): ?>
+<div class="card mt-3">
+    <div class="card-body">
+        <h6 class="card-title mb-3">Permintaan Reset Password</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Nama</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Diminta pada</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($pendingResets as $req): ?>
+                        <tr>
+                            <td class="fw-semibold"><?= htmlspecialchars($req['nama']) ?></td>
+                            <td><?= htmlspecialchars($req['username']) ?></td>
+                            <td><span class="badge bg-light text-dark text-uppercase"><?= htmlspecialchars($req['role']) ?></span></td>
+                            <td><?= htmlspecialchars($req['created_at']) ?></td>
+                            <td>
+                                <form class="d-inline" method="post" action="?page=admin-users" onsubmit="return confirm('Proses reset password untuk pengguna ini?')">
+                                    <input type="hidden" name="action" value="reset">
+                                    <input type="hidden" name="id" value="<?= (int)$req['user_id'] ?>">
+                                    <input type="hidden" name="request_id" value="<?= (int)$req['id'] ?>">
+                                    <button class="btn btn-outline-warning btn-sm" type="submit">Reset &amp; Beri Password</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/../layouts/main.php';
