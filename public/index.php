@@ -1053,7 +1053,9 @@ switch ($page) {
                 redirect('?page=admin-users');
             }
         }
-        $users = $db->query("SELECT id, nama, username, role, is_active FROM users ORDER BY nama")->fetchAll();
+        $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id <> :me ORDER BY nama");
+        $stmt->execute([':me' => $currentUser['id']]);
+        $users = $stmt->fetchAll();
         require __DIR__ . '/../app/views/admin/users_index.php';
         break;
 
