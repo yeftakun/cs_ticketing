@@ -5,6 +5,7 @@ $breadcrumbs = ['Home' => '?page=dashboard', 'Admin' => '#', 'Kategori Keluhan' 
 $activeMenu = 'kategori';
 ob_start();
 ?>
+<?php $isAdmin = ($currentUser['role'] ?? '') === 'admin'; ?>
 <div class="card border-0 mb-3">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -21,23 +22,27 @@ ob_start();
                 </ul>
             </div>
         <?php endif; ?>
-        <form class="row g-3" method="post" action="?page=admin-kategori<?= $editKategori ? '&id=' . (int)$editKategori['id'] : '' ?>">
-            <input type="hidden" name="id" value="<?= $editKategori['id'] ?? '' ?>">
-            <div class="col-md-4">
-                <label class="form-label">Nama Kategori</label>
-                <input type="text" name="nama" class="form-control" value="<?= htmlspecialchars($_POST['nama'] ?? $editKategori['nama_kategori'] ?? '') ?>" required>
-            </div>
-            <div class="col-md-8">
-                <label class="form-label">Deskripsi</label>
-                <input type="text" name="deskripsi" class="form-control" value="<?= htmlspecialchars($_POST['deskripsi'] ?? $editKategori['deskripsi'] ?? '') ?>">
-            </div>
-            <div class="col-12 d-flex gap-2">
-                <button class="btn btn-danger" type="submit"><?= $editKategori ? 'Simpan Perubahan' : 'Tambah' ?></button>
-                <?php if ($editKategori): ?>
-                    <a class="btn btn-outline-secondary" href="?page=admin-kategori">Batal Edit</a>
-                <?php endif; ?>
-            </div>
-        </form>
+        <?php if ($isAdmin): ?>
+            <form class="row g-3" method="post" action="?page=admin-kategori<?= $editKategori ? '&id=' . (int)$editKategori['id'] : '' ?>">
+                <input type="hidden" name="id" value="<?= $editKategori['id'] ?? '' ?>">
+                <div class="col-md-4">
+                    <label class="form-label">Nama Kategori</label>
+                    <input type="text" name="nama" class="form-control" value="<?= htmlspecialchars($_POST['nama'] ?? $editKategori['nama_kategori'] ?? '') ?>" required>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Deskripsi</label>
+                    <input type="text" name="deskripsi" class="form-control" value="<?= htmlspecialchars($_POST['deskripsi'] ?? $editKategori['deskripsi'] ?? '') ?>">
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-danger" type="submit"><?= $editKategori ? 'Simpan Perubahan' : 'Tambah' ?></button>
+                    <?php if ($editKategori): ?>
+                        <a class="btn btn-outline-secondary" href="?page=admin-kategori">Batal Edit</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php else: ?>
+            <div class="alert alert-info mb-0">Hanya admin yang dapat menambah atau mengubah kategori.</div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -60,9 +65,13 @@ ob_start();
                             <td><?= htmlspecialchars($row['deskripsi']) ?></td>
                             <td><span class="badge bg-light text-dark"><?= htmlspecialchars($row['jumlah']) ?></span></td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a class="btn btn-outline-danger" href="?page=admin-kategori&id=<?= (int)$row['id'] ?>">Edit</a>
-                                </div>
+                                <?php if ($isAdmin): ?>
+                                    <div class="btn-group btn-group-sm">
+                                        <a class="btn btn-outline-danger" href="?page=admin-kategori&id=<?= (int)$row['id'] ?>">Edit</a>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted small">-</span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
