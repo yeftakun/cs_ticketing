@@ -9,7 +9,9 @@ ob_start();
     <div>
         <h6 class="text-muted mb-0">Kelola data pelanggan</h6>
     </div>
-    <a href="?page=pelanggan-form" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Pelanggan</a>
+    <?php if (($currentUser['role'] ?? '') !== 'agent'): ?>
+        <a href="?page=pelanggan-form" class="btn btn-danger"><i class="bi bi-plus-lg me-1"></i> Tambah Pelanggan</a>
+    <?php endif; ?>
 </div>
 
 <div class="card border-0 mb-3">
@@ -68,7 +70,9 @@ ob_start();
                             <td>
                                 <div class="btn-group btn-group-sm">
                                     <a class="btn btn-outline-secondary" href="?page=keluhan&pelanggan=<?= (int)$row['id'] ?>">Keluhan</a>
-                                    <a class="btn btn-outline-danger" href="?page=pelanggan-form&id=<?= (int)$row['id'] ?>">Edit</a>
+                                    <?php if (($currentUser['role'] ?? '') !== 'agent'): ?>
+                                        <a class="btn btn-outline-danger" href="?page=pelanggan-form&id=<?= (int)$row['id'] ?>">Edit</a>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
