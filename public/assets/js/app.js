@@ -107,3 +107,66 @@
         });
     }
 })();
+
+// Notifikasi
+(() => {
+    const badge = document.getElementById("notif-badge");
+    const modalEl = document.getElementById("notifModal");
+    const listEl = document.getElementById("notif-list");
+    const btn = document.getElementById("notif-btn");
+
+    const renderNotif = (items) => {
+        if (!listEl) return;
+        listEl.innerHTML = "";
+        if (!items || items.length === 0) {
+            listEl.innerHTML = '<div class="text-center text-muted py-2">Tidak ada notifikasi baru.</div>';
+            return;
+        }
+        items.forEach((item) => {
+            const div = document.createElement("div");
+            div.className = "list-group-item";
+            div.innerHTML = `
+                <div class="fw-semibold">${item.title || ""}</div>
+                <div class="text-muted small">${item.created_at || ""}</div>
+                <div class="text-muted">${item.message || ""}</div>
+            `;
+            listEl.appendChild(div);
+        });
+    };
+
+    const fetchCount = () => {
+        if (!badge) return;
+        fetch("?ajax=notif-count", { headers: { "Accept": "application/json" } })
+            .then((r) => r.json())
+            .then((res) => {
+                const c = parseInt(res.count || 0, 10);
+                if (c > 0) {
+                    badge.textContent = c;
+                    badge.classList.remove("d-none");
+                } else {
+                    badge.classList.add("d-none");
+                }
+            })
+            .catch(() => {});
+    };
+
+    const fetchUnread = () => {
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="text-center text-muted py-2">Memuat...</div>';
+        fetch("?ajax=notif-unread", { headers: { "Accept": "application/json" } })
+            .then((r) => r.json())
+            .then((res) => {
+                renderNotif(res.items || []);
+                fetchCount(); // update badge
+            })
+            .catch(() => {
+                listEl.innerHTML = '<div class="text-center text-muted py-2">Gagal memuat notifikasi.</div>';
+            });
+    };
+
+    if (btn && modalEl) {
+        // Fetch count on load
+        fetchCount();
+        modalEl.addEventListener("show.bs.modal", fetchUnread);
+    }
+})();

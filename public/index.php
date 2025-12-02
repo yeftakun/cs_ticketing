@@ -32,6 +32,29 @@ function generateTempPassword(int $min = 10, int $max = 12): string
     return $out;
 }
 
+function ensureNotificationsTable(PDO $db): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $sql = "CREATE TABLE IF NOT EXISTS notifications (
+        id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT,
+        is_read TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    try {
+        $db->exec($sql);
+    } catch (PDOException $e) {
+        // abaikan jika tidak bisa membuat, fitur notifikasi jadi nonaktif
+    }
+    $done = true;
+}
+
 function redirect(string $url): void
 {
     header("Location: {$url}");
@@ -148,6 +171,36 @@ if ($page === 'forgot-password') {
 // Proteksi halaman lain
 if (!$loggedIn && !in_array($page, ['login', 'forgot-password'], true)) {
     redirect('?page=login');
+}
+
+// AJAX notifikasi (butuh login)
+if ($loggedIn && ($_GET['ajax'] ?? '') === 'notif-count') {
+    header('Content-Type: application/json');
+    ensureNotificationsTable($db);
+    $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = :uid AND is_read = 0");
+    $stmt->execute([':uid' => $currentUser['id']]);
+    $count = (int)$stmt->fetchColumn();
+    echo json_encode(['count' => $count]);
+    exit;
+}
+
+if ($loggedIn && ($_GET['ajax'] ?? '') === 'notif-unread') {
+    header('Content-Type: application/json');
+    ensureNotificationsTable($db);
+    $stmt = $db->prepare("SELECT id, title, message, created_at FROM notifications WHERE user_id = :uid AND is_read = 0 ORDER BY created_at DESC LIMIT 20");
+    $stmt->execute([':uid' => $currentUser['id']]);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($items)) {
+        $ids = array_column($items, 'id');
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $upd = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id IN ($ph)");
+        foreach ($ids as $i => $val) {
+            $upd->bindValue($i + 1, $val, PDO::PARAM_INT);
+        }
+        $upd->execute();
+    }
+    echo json_encode(['items' => $items]);
+    exit;
 }
 
 // Paksa ganti password jika diperlukan
@@ -1174,6 +1227,30 @@ switch ($page) {
             $pendingResets = [];
         }
         require __DIR__ . '/../app/views/admin/users_index.php';
+        break;
+
+    case 'notifications':
+        if (!$loggedIn) redirect('?page=login');
+        ensureNotificationsTable($db);
+        $limit = 10;
+        $offset = (int)($_GET['offset'] ?? 0);
+        $isAjax = isset($_GET['ajax']);
+        $stmt = $db->prepare("SELECT id, title, message, is_read, created_at FROM notifications WHERE user_id = :uid ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+        $stmt->bindValue(':uid', $currentUser['id'], PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = :uid");
+        $countStmt->execute([':uid' => $currentUser['id']]);
+        $total = (int)$countStmt->fetchColumn();
+        $hasMore = ($offset + $limit) < $total;
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['items' => $items, 'has_more' => $hasMore]);
+            exit;
+        }
+        require __DIR__ . '/../app/views/notifications/index.php';
         break;
 
     default:

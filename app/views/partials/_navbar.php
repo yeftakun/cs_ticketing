@@ -11,9 +11,9 @@ $initials = strtoupper(substr($currentUser['name'], 0, 1) . substr(strstr($curre
             Customer Complaint Dashboard
         </a>
         <div class="ms-auto d-flex align-items-center gap-3">
-            <button class="btn btn-icon position-relative" type="button">
+            <button class="btn btn-icon position-relative" type="button" data-bs-toggle="modal" data-bs-target="#notifModal" id="notif-btn">
                 <i class="bi bi-bell"></i>
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark">3</span>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark d-none" id="notif-badge"></span>
             </button>
             <div class="dropdown">
                 <a class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -32,3 +32,23 @@ $initials = strtoupper(substr($currentUser['name'], 0, 1) . substr(strstr($curre
         </div>
     </div>
 </nav>
+
+<!-- Notifikasi Modal -->
+<div class="modal fade" id="notifModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Notifikasi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="notif-list" class="list-group list-group-flush">
+                    <div class="text-center text-muted py-2">Memuat...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="?page=notifications" class="btn btn-outline-danger btn-sm w-100">Lihat semua notifikasi</a>
+            </div>
+        </div>
+    </div>
+</div>
