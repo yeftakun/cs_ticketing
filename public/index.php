@@ -55,6 +55,42 @@ function ensureNotificationsTable(PDO $db): void
     $done = true;
 }
 
+function addNotification(PDO $db, int $userId, string $title, string $message = ''): void
+{
+    ensureNotificationsTable($db);
+    try {
+        $stmt = $db->prepare("INSERT INTO notifications (user_id, title, message) VALUES (:uid, :title, :msg)");
+        $stmt->execute([
+            ':uid' => $userId,
+            ':title' => $title,
+            ':msg' => $message,
+        ]);
+    } catch (PDOException $e) {
+        // ignore
+    }
+}
+
+function notifyRoles(PDO $db, array $roles, string $title, string $message = '', ?int $excludeUserId = null): void
+{
+    ensureNotificationsTable($db);
+    try {
+        $placeholders = implode(',', array_fill(0, count($roles), '?'));
+        $sql = "SELECT id FROM users WHERE role IN ($placeholders) AND is_active = 1";
+        $stmt = $db->prepare($sql);
+        foreach ($roles as $i => $role) {
+            $stmt->bindValue($i + 1, $role);
+        }
+        $stmt->execute();
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($ids as $uid) {
+            if ($excludeUserId !== null && (int)$uid === $excludeUserId) continue;
+            addNotification($db, (int)$uid, $title, $message);
+        }
+    } catch (PDOException $e) {
+        // ignore
+    }
+}
+
 function redirect(string $url): void
 {
     header("Location: {$url}");
@@ -428,11 +464,14 @@ switch ($page) {
             $id = (int)($_POST['id'] ?? 0);
             $statusBaru = $_POST['status_baru'] ?? '';
             $catatan = trim($_POST['catatan'] ?? '');
+            $kelInfo = null;
+            if ($id > 0) {
+                $infoStmt = $db->prepare("SELECT kode_keluhan, created_by FROM keluhan WHERE id = :id LIMIT 1");
+                $infoStmt->execute([':id' => $id]);
+                $kelInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            }
             if ($currentUser['role'] === 'agent' && $id > 0) {
-                $ownerStmt = $db->prepare("SELECT created_by FROM keluhan WHERE id = :id LIMIT 1");
-                $ownerStmt->execute([':id' => $id]);
-                $ownerId = $ownerStmt->fetchColumn();
-                if ((int)$ownerId !== (int)$currentUser['id']) {
+                if ($kelInfo && (int)$kelInfo['created_by'] !== (int)$currentUser['id']) {
                     $error = 'Tidak boleh mengubah keluhan milik user lain.';
                 }
             }
@@ -466,6 +505,9 @@ switch ($page) {
                         ':user_id' => $currentUser['id'],
                         ':id' => $id,
                     ]);
+                    if ($kelInfo && (int)$kelInfo['created_by'] !== (int)$currentUser['id']) {
+                        addNotification($db, (int)$kelInfo['created_by'], 'Status tiket ' . $kelInfo['kode_keluhan'], 'Diubah menjadi ' . $statusBaru);
+                    }
                     $db->commit();
                     redirect('?page=keluhan&info=Status%20berhasil%20diperbarui');
                 } catch (PDOException $e) {
@@ -483,6 +525,7 @@ switch ($page) {
             $statusBaru = $_POST['status_baru'] ?? '';
             $catatan = trim($_POST['catatan'] ?? '');
             $idsInt = array_values(array_filter(array_map('intval', $ids)));
+            $kelList = [];
             if ($currentUser['role'] === 'agent' && !empty($idsInt)) {
                 $ph = implode(',', array_fill(0, count($idsInt), '?'));
                 $chk = $db->prepare("SELECT COUNT(*) FROM keluhan WHERE id IN ($ph) AND created_by = ?");
@@ -502,6 +545,12 @@ switch ($page) {
                 try {
                     $db->beginTransaction();
                     $now = date('Y-m-d H:i:s');
+                    $infoStmt = $db->prepare("SELECT id, kode_keluhan, created_by FROM keluhan WHERE id IN (" . implode(',', array_fill(0, count($idsInt), '?')) . ")");
+                    foreach ($idsInt as $i => $val) {
+                        $infoStmt->bindValue($i + 1, $val, PDO::PARAM_INT);
+                    }
+                    $infoStmt->execute();
+                    $kelList = $infoStmt->fetchAll(PDO::FETCH_ASSOC);
                     // Insert log per keluhan
                     $insLog = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
                     foreach ($idsInt as $keluhanId) {
@@ -540,6 +589,11 @@ switch ($page) {
                         $upd->bindValue($k, $v);
                     }
                     $upd->execute();
+                    foreach ($kelList as $row) {
+                        if ((int)$row['created_by'] !== (int)$currentUser['id']) {
+                            addNotification($db, (int)$row['created_by'], 'Status tiket ' . $row['kode_keluhan'], 'Diubah menjadi ' . $statusBaru);
+                        }
+                    }
                     $db->commit();
                     redirect('?page=keluhan&info=Bulk%20status%20berhasil%20diperbarui');
                 } catch (PDOException $e) {
@@ -828,6 +882,12 @@ switch ($page) {
                     ]);
                     $keluhanId = (int)$db->lastInsertId();
                     $db->commit();
+                    // Kirim notif di luar transaksi supaya tidak menggagalkan insert tiket
+                    try {
+                        notifyRoles($db, ['admin', 'supervisor'], 'Keluhan baru ' . $kode, 'Prioritas ' . $prioritas . ' via ' . $channel, $currentUser['id']);
+                    } catch (Throwable $e) {
+                        // abaikan notif error
+                    }
                     redirect('?page=keluhan-show&id=' . $keluhanId);
                 } catch (PDOException $e) {
                     $db->rollBack();
