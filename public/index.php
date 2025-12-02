@@ -868,7 +868,7 @@ switch ($page) {
                     $now = date('Y-m-d H:i:s');
                     $insKeluhan = $db->prepare("
                         INSERT INTO keluhan (kode_keluhan, pelanggan_id, kategori_id, channel, deskripsi_keluhan, status_keluhan, prioritas, tanggal_lapor, tanggal_update_terakhir, tanggal_selesai, created_by, updated_by)
-                        VALUES (:kode, :pelanggan_id, :kategori_id, :channel, :deskripsi, 'Open', :prioritas, :tgl, :tgl, NULL, :user_id, :user_id)
+                        VALUES (:kode, :pelanggan_id, :kategori_id, :channel, :deskripsi, 'Open', :prioritas, :tgl_lapor, :tgl_update, NULL, :created_by, :updated_by)
                     ");
                     $insKeluhan->execute([
                         ':kode' => $kode,
@@ -877,8 +877,10 @@ switch ($page) {
                         ':channel' => $channel,
                         ':deskripsi' => $deskripsi,
                         ':prioritas' => $prioritas,
-                        ':tgl' => $now,
-                        ':user_id' => $currentUser['id'],
+                        ':tgl_lapor' => $now,
+                        ':tgl_update' => $now,
+                        ':created_by' => $currentUser['id'],
+                        ':updated_by' => $currentUser['id'],
                     ]);
                     $keluhanId = (int)$db->lastInsertId();
                     $db->commit();
@@ -891,7 +893,7 @@ switch ($page) {
                     redirect('?page=keluhan-show&id=' . $keluhanId);
                 } catch (PDOException $e) {
                     $db->rollBack();
-                    $errors[] = 'Gagal menyimpan keluhan.';
+                    $errors[] = 'Gagal menyimpan keluhan: ' . $e->getMessage();
                 }
             }
         }
