@@ -54,7 +54,7 @@ Detail & timeline keluhan
 
 Pelanggan
 ---------
-[ss pelanggan list]
+![alt text](image-4.png)
 - List + filter/search (tombol **Cari**).  
 - Tambah/Edit hanya untuk admin & supervisor (tombol disembunyikan untuk agent).  
 - Agent hanya dapat membaca.
