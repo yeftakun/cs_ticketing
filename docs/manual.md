@@ -24,14 +24,14 @@ Lupa password & reset internal
 
 Dashboard
 ---------
-[ss dashboard]
+![alt text](image.png)
 - Filter periode, kategori, status (otomatis terapkan; search box di tempat lain pakai tombol **Cari**).
 - Stat cards (hari ini, bulan berjalan, open/solved), tren harian (baru vs selesai), bar per kategori.
 - Tabel “Keluhan Terbaru” + tombol **Lihat semua** menuju daftar keluhan.
 
 Keluhan
 -------
-[ss keluhan list]
+![alt text](image-1.png)
 - Daftar: filter (kategori/status/prioritas/channel/date range), search (kode/no HP/nama) dengan tombol **Cari**, sort per kolom (ikon arah), pagination dinamis.
 - Quick status (modal) dan bulk update status (centang beberapa, isi catatan, pilih status). Agent hanya bisa mengubah tiket miliknya.
 - Ekspor: CSV atau XLSX (SpreadsheetML).  
@@ -40,14 +40,14 @@ Keluhan
 
 Tambah keluhan
 --------------
-[ss keluhan create]
+![alt text](image-2.png)
 1) Isi No HP → klik **Cek Pelanggan** untuk auto-fill jika sudah ada.  
 2) Isi kategori, channel, prioritas, deskripsi (wajib).  
 3) Simpan → tiket dibuat, notifikasi ke admin/supervisor.
 
 Detail & timeline keluhan
 -------------------------
-[ss keluhan detail]
+![alt text](image-3.png)
 - Menampilkan info pelanggan, detail tiket, status, prioritas, deskripsi.
 - Timeline log: status, catatan, penulis, waktu, lampiran (jika ada).
 - Form tambah log/status + upload lampiran multiple. File disimpan di `public/uploads/keluhan/{id}/log_{log_id}/` dan bisa diunduh dari detail.
