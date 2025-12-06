@@ -224,8 +224,8 @@ function cascadePreview(PDO $db, string $entity, int $id): array
             $notifCount = 0;
         }
         try {
-            $resetStmt = $db->prepare("SELECT COUNT(*) FROM password_resets WHERE user_id = :id OR reset_by = :id");
-            $resetStmt->execute([':id' => $id]);
+            $resetStmt = $db->prepare("SELECT COUNT(*) FROM password_resets WHERE user_id = :uid OR reset_by = :rid");
+            $resetStmt->execute([':uid' => $id, ':rid' => $id]);
             $resetCount = (int)$resetStmt->fetchColumn();
         } catch (PDOException $e) {
             $resetCount = 0;
@@ -336,14 +336,25 @@ function permanentDeleteEntity(PDO $db, string $entity, int $id): array
                 $delKeluhan->execute();
             }
             $db->prepare("UPDATE keluhan_log SET user_id = NULL WHERE user_id = :id")->execute([':id' => $id]);
-            $db->prepare("UPDATE keluhan SET created_by = CASE WHEN created_by = :id THEN NULL ELSE created_by END, updated_by = CASE WHEN updated_by = :id THEN NULL ELSE updated_by END WHERE created_by = :id OR updated_by = :id")->execute([':id' => $id]);
+            $updUserKeluhan = $db->prepare("
+                UPDATE keluhan
+                SET created_by = CASE WHEN created_by = :id_created THEN NULL ELSE created_by END,
+                    updated_by = CASE WHEN updated_by = :id_updated THEN NULL ELSE updated_by END
+                WHERE created_by = :id_created_match OR updated_by = :id_updated_match
+            ");
+            $updUserKeluhan->execute([
+                ':id_created' => $id,
+                ':id_updated' => $id,
+                ':id_created_match' => $id,
+                ':id_updated_match' => $id,
+            ]);
             try {
                 $db->prepare("DELETE FROM notifications WHERE user_id = :id")->execute([':id' => $id]);
             } catch (PDOException $e) {
                 // ignore missing table
             }
             try {
-                $db->prepare("DELETE FROM password_resets WHERE user_id = :id OR reset_by = :id")->execute([':id' => $id]);
+                $db->prepare("DELETE FROM password_resets WHERE user_id = :uid OR reset_by = :rid")->execute([':uid' => $id, ':rid' => $id]);
             } catch (PDOException $e) {
                 // ignore missing table
             }
