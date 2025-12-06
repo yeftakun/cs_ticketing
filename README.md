@@ -3,6 +3,8 @@ CS Ticketing
 
 Sistem tiket keluhan pelanggan berbasis PHP + Bootstrap dengan layout sidebar + top navbar. Mendukung multi-role (admin, supervisor, agent), pencatatan keluhan, timeline log, lampiran, dan notifikasi.
 
+[Guide](docs/manual.md)
+
 Fitur utama
 -----------
 - **Autentikasi & Role**: admin (full), supervisor (operasional + kategori read-only), agent (operasional tiket milik sendiri, pelanggan read-only).
