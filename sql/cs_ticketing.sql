@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3310
--- Waktu pembuatan: 03 Des 2025 pada 05.58
+-- Waktu pembuatan: 06 Des 2025 pada 18.20
 -- Versi server: 10.4.32-MariaDB
 -- Versi PHP: 8.2.12
 
@@ -30,22 +30,23 @@ SET time_zone = "+00:00";
 CREATE TABLE `kategori_keluhan` (
   `id` int(10) UNSIGNED NOT NULL,
   `nama_kategori` varchar(100) DEFAULT NULL,
-  `deskripsi` text DEFAULT NULL
+  `deskripsi` text DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `kategori_keluhan`
 --
 
-INSERT INTO `kategori_keluhan` (`id`, `nama_kategori`, `deskripsi`) VALUES
-(1, 'Sinyal Lemah / Hilang', 'Gangguan sinyal di area pelanggan'),
-(2, 'Internet Lambat', 'Kecepatan data di bawah standar'),
-(3, 'Gangguan Fiber / ODP Rusak', 'ODP/ONT/FO bermasalah'),
-(4, 'Tidak Bisa Telepon/SMS', 'Voice/SMS gagal'),
-(5, 'Keluhan Paket Tidak Masuk', 'Paket belum aktif'),
-(6, 'Aplikasi MyTelkomsel Error', 'Aplikasi tidak bisa digunakan'),
-(7, 'Billing / Tagihan Tidak Sesuai', 'Tagihan dianggap salah'),
-(8, 'dasdds', 'dasdsssss');
+INSERT INTO `kategori_keluhan` (`id`, `nama_kategori`, `deskripsi`, `deleted_at`) VALUES
+(1, 'Sinyal Lemah / Hilang', 'Gangguan sinyal di area pelanggan', NULL),
+(2, 'Internet Lambat', 'Kecepatan data di bawah standar', NULL),
+(3, 'Gangguan Fiber / ODP Rusak', 'ODP/ONT/FO bermasalah', NULL),
+(4, 'Tidak Bisa Telepon/SMS', 'Voice/SMS gagal', NULL),
+(5, 'Keluhan Paket Tidak Masuk', 'Paket belum aktif', NULL),
+(6, 'Aplikasi MyTelkomsel Error', 'Aplikasi tidak bisa digunakan', NULL),
+(7, 'Billing / Tagihan Tidak Sesuai', 'Tagihan dianggap salah', NULL),
+(8, 'dasdds', 'dasdsssss', '2025-12-07 00:56:43');
 
 -- --------------------------------------------------------
 
@@ -66,19 +67,20 @@ CREATE TABLE `keluhan` (
   `tanggal_update_terakhir` datetime DEFAULT NULL,
   `tanggal_selesai` datetime DEFAULT NULL,
   `created_by` int(10) UNSIGNED DEFAULT NULL,
-  `updated_by` int(10) UNSIGNED DEFAULT NULL
+  `updated_by` int(10) UNSIGNED DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `keluhan`
 --
 
-INSERT INTO `keluhan` (`id`, `kode_keluhan`, `pelanggan_id`, `kategori_id`, `channel`, `deskripsi_keluhan`, `status_keluhan`, `prioritas`, `tanggal_lapor`, `tanggal_update_terakhir`, `tanggal_selesai`, `created_by`, `updated_by`) VALUES
-(1, 'CMP-2025-A1B2C3', 1, 2, 'WhatsApp', 'Internet sangat lambat sejak pagi.', 'Closed', 'Low', '2025-11-29 08:30:00', '2025-12-01 15:40:40', '2025-11-30 15:43:10', 2, 2),
-(2, 'CMP-2025-D4E5F6', 2, 5, 'Call Center', 'Paket data yang dibeli belum aktif.', 'On Progress', 'Medium', '2025-11-29 08:45:00', '2025-12-02 18:01:36', NULL, 2, 2),
-(3, 'CMP-2025-G7H8I9', 3, 7, 'Aplikasi', 'Tagihan bulan ini melonjak tidak wajar.', 'Solved', 'High', '2025-11-28 15:10:00', '2025-11-28 16:00:00', '2025-11-28 16:00:00', 2, 1),
-(6, 'KEL-20251202-1395', 1, 1, 'Call Center', 'Tes via curl 2', 'Open', 'Medium', '2025-12-02 17:58:54', '2025-12-02 17:58:54', NULL, 2, 2),
-(7, 'KEL-20251202-8990', 1, 6, 'Call Center', 'dsda', 'Open', 'Medium', '2025-12-02 18:02:22', '2025-12-02 18:02:22', NULL, 2, 2);
+INSERT INTO `keluhan` (`id`, `kode_keluhan`, `pelanggan_id`, `kategori_id`, `channel`, `deskripsi_keluhan`, `status_keluhan`, `prioritas`, `tanggal_lapor`, `tanggal_update_terakhir`, `tanggal_selesai`, `created_by`, `updated_by`, `deleted_at`) VALUES
+(1, 'CMP-2025-A1B2C3', 1, 2, 'WhatsApp', 'Internet sangat lambat sejak pagi.', 'Closed', 'Low', '2025-11-29 08:30:00', '2025-12-01 15:40:40', '2025-11-30 15:43:10', 2, 2, NULL),
+(2, 'CMP-2025-D4E5F6', 2, 5, 'Call Center', 'Paket data yang dibeli belum aktif.', 'On Progress', 'Medium', '2025-11-29 08:45:00', '2025-12-02 18:01:36', NULL, 2, 2, NULL),
+(3, 'CMP-2025-G7H8I9', 3, 7, 'Aplikasi', 'Tagihan bulan ini melonjak tidak wajar.', 'Solved', 'High', '2025-11-28 15:10:00', '2025-11-28 16:00:00', '2025-11-28 16:00:00', 2, 1, NULL),
+(6, 'KEL-20251202-1395', 1, 1, 'Call Center', 'Tes via curl 2', 'Open', 'Medium', '2025-12-02 17:58:54', '2025-12-02 17:58:54', NULL, 2, 2, '2025-12-06 23:48:19'),
+(7, 'KEL-20251202-8990', 1, 6, 'Call Center', 'dsda', 'Open', 'Medium', '2025-12-02 18:02:22', '2025-12-02 18:02:22', NULL, 2, 2, NULL);
 
 -- --------------------------------------------------------
 
@@ -92,25 +94,26 @@ CREATE TABLE `keluhan_log` (
   `status_log` enum('Open','On Progress','Pending','Solved','Closed') DEFAULT NULL,
   `catatan` text DEFAULT NULL,
   `tanggal_log` datetime DEFAULT NULL,
-  `user_id` int(10) UNSIGNED DEFAULT NULL
+  `user_id` int(10) UNSIGNED DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `keluhan_log`
 --
 
-INSERT INTO `keluhan_log` (`id`, `keluhan_id`, `status_log`, `catatan`, `tanggal_log`, `user_id`) VALUES
-(1, 1, 'On Progress', 'Sedang dicek ke jaringan, kemungkinan congested.', '2025-11-29 09:00:00', 2),
-(2, 2, 'Open', 'Keluhan diterima, menunggu verifikasi paket.', '2025-11-29 08:45:00', 2),
-(3, 3, 'Solved', 'Tagihan dikoreksi, pelanggan sudah diinformasikan.', '2025-11-28 16:00:00', 1),
-(4, 2, 'On Progress', 'Ntah', '2025-11-30 11:55:14', 1),
-(5, 2, 'Open', 'dasd', '2025-11-30 11:55:30', 1),
-(6, 2, 'Pending', 'Menunggu antrian', '2025-11-30 12:01:00', 1),
-(13, 2, 'Closed', 'bulk: ditutup test', '2025-11-30 13:04:06', 1),
-(14, 1, 'Closed', 'bulk: ditutup test', '2025-11-30 13:04:06', 1),
-(15, 1, 'Closed', 'Test', '2025-11-30 15:43:10', 1),
-(16, 2, 'Open', 'xsxds', '2025-12-01 10:39:42', 1),
-(17, 2, 'On Progress', 'm', '2025-12-02 18:01:36', 2);
+INSERT INTO `keluhan_log` (`id`, `keluhan_id`, `status_log`, `catatan`, `tanggal_log`, `user_id`, `deleted_at`) VALUES
+(1, 1, 'On Progress', 'Sedang dicek ke jaringan, kemungkinan congested.', '2025-11-29 09:00:00', 2, NULL),
+(2, 2, 'Open', 'Keluhan diterima, menunggu verifikasi paket.', '2025-11-29 08:45:00', 2, NULL),
+(3, 3, 'Solved', 'Tagihan dikoreksi, pelanggan sudah diinformasikan.', '2025-11-28 16:00:00', 1, NULL),
+(4, 2, 'On Progress', 'Ntah', '2025-11-30 11:55:14', 1, NULL),
+(5, 2, 'Open', 'dasd', '2025-11-30 11:55:30', 1, NULL),
+(6, 2, 'Pending', 'Menunggu antrian', '2025-11-30 12:01:00', 1, NULL),
+(13, 2, 'Closed', 'bulk: ditutup test', '2025-11-30 13:04:06', 1, NULL),
+(14, 1, 'Closed', 'bulk: ditutup test', '2025-11-30 13:04:06', 1, NULL),
+(15, 1, 'Closed', 'Test', '2025-11-30 15:43:10', 1, NULL),
+(16, 2, 'Open', 'xsxds', '2025-12-01 10:39:42', 1, NULL),
+(17, 2, 'On Progress', 'm', '2025-12-02 18:01:36', 2, NULL);
 
 -- --------------------------------------------------------
 
@@ -133,11 +136,7 @@ CREATE TABLE `notifications` (
 
 INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `is_read`, `created_at`) VALUES
 (1, 1, 'Keluhan baru KEL-20251202-1395', 'Prioritas Medium via Call Center', 1, '2025-12-03 00:58:54'),
-(2, 5, 'Keluhan baru KEL-20251202-1395', 'Prioritas Medium via Call Center', 0, '2025-12-03 00:58:54'),
-(3, 6, 'Keluhan baru KEL-20251202-1395', 'Prioritas Medium via Call Center', 0, '2025-12-03 00:58:54'),
-(4, 1, 'Keluhan baru KEL-20251202-8990', 'Prioritas Medium via Call Center', 1, '2025-12-03 01:02:22'),
-(5, 5, 'Keluhan baru KEL-20251202-8990', 'Prioritas Medium via Call Center', 0, '2025-12-03 01:02:22'),
-(6, 6, 'Keluhan baru KEL-20251202-8990', 'Prioritas Medium via Call Center', 0, '2025-12-03 01:02:22');
+(4, 1, 'Keluhan baru KEL-20251202-8990', 'Prioritas Medium via Call Center', 1, '2025-12-03 01:02:22');
 
 -- --------------------------------------------------------
 
@@ -154,14 +153,6 @@ CREATE TABLE `password_resets` (
   `used_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data untuk tabel `password_resets`
---
-
-INSERT INTO `password_resets` (`id`, `user_id`, `reset_by`, `temp_password_hash`, `created_at`, `used_at`) VALUES
-(12, 5, 1, '$2y$10$O2Zsjqcc3vX0g0KbExdxkulyWpLSOSfnVSibpzbiFiqTny9PMykmi', '2025-12-01 21:11:22', '2025-12-01 22:12:53'),
-(13, 5, 1, '$2y$10$ULovc05QJ/z.g.1P56AoVuwk5JP9s0V2RgwQTaAU3PrzYZYgxFppS', '2025-12-01 21:11:59', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -173,20 +164,19 @@ CREATE TABLE `pelanggan` (
   `nama_pelanggan` varchar(100) DEFAULT NULL,
   `no_hp` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
-  `kota` varchar(100) DEFAULT NULL
+  `kota` varchar(100) DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `pelanggan`
 --
 
-INSERT INTO `pelanggan` (`id`, `nama_pelanggan`, `no_hp`, `email`, `kota`) VALUES
-(1, 'Budi Santoso', '081234567890', 'budi@example.com', 'Makassar'),
-(2, 'Siti Aminah', '082233445566', 'siti@example.com', 'Jakarta'),
-(3, 'Andi Wijaya', '081345678901', 'andi@example.com', 'Bandung'),
-(5, 'David', '082339239299', 'david22@gmail.com', 'Manado'),
-(6, 'dasd', '08233232', 'dasd@gmail.com', 'dsad'),
-(7, 'Test Agent New', '081234567891', NULL, 'Bandung');
+INSERT INTO `pelanggan` (`id`, `nama_pelanggan`, `no_hp`, `email`, `kota`, `deleted_at`) VALUES
+(1, 'Budi Santoso', '081234567890', 'budi@example.com', 'Makassar', NULL),
+(2, 'Siti Aminah', '082233445566', 'siti@example.com', 'Jakarta', NULL),
+(3, 'Andi Wijaya', '081345678901', 'andi@example.com', 'Bandung', NULL),
+(7, 'Test Agent New', '081234567891', NULL, 'Bandung', NULL);
 
 -- --------------------------------------------------------
 
@@ -202,18 +192,18 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) DEFAULT NULL,
   `role` enum('agent','supervisor','admin') DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `must_change_password` tinyint(1) NOT NULL DEFAULT 0
+  `must_change_password` tinyint(1) NOT NULL DEFAULT 0,
+  `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data untuk tabel `users`
 --
 
-INSERT INTO `users` (`id`, `nama`, `kontak`, `username`, `password_hash`, `role`, `is_active`, `must_change_password`) VALUES
-(1, 'Admin', '081234567890', 'admin', '$2y$10$jhkaoJnggbtcp3WsREXgbOd7ipth1SPkXZptiWcdmYfv8V8e2WpeK', 'admin', 1, 0),
-(2, 'Agent ABCD', '08123454333', 'agent', '$2y$10$K3YIAC.klQqYN/xIMb43dennczocgFgNJhE.enK9iJFghZHDjU48G', 'agent', 1, 0),
-(5, 'Yefta Asyel', 'yefta@gmail.com', 'yefta', '$2y$10$g8mjsNos40TTU15B3sVhU.dX4.VhvWRZxSwyRfoHhNiERYO7zR0wO', 'supervisor', 1, 0),
-(6, 'Admin2', 'admin@gmail.com', 'admin2', '$2y$10$mfjPygQnPaonWgNXa0NWSuALmA9eZkVBR9fo489IhEdgsIfdfLJ4i', 'admin', 1, 0);
+INSERT INTO `users` (`id`, `nama`, `kontak`, `username`, `password_hash`, `role`, `is_active`, `must_change_password`, `deleted_at`) VALUES
+(1, 'Admin', '081234567890', 'admin', '$2y$10$jhkaoJnggbtcp3WsREXgbOd7ipth1SPkXZptiWcdmYfv8V8e2WpeK', 'admin', 1, 0, NULL),
+(2, 'Agent ABCD', '08123454333', 'agent', '$2y$10$K3YIAC.klQqYN/xIMb43dennczocgFgNJhE.enK9iJFghZHDjU48G', 'agent', 1, 0, NULL),
+(7, 'David Haniko', '082232222222', 'david', '$2y$10$NcAWlBb8IM/CW45BUVVCK.97DAbBZKw5PL5dZa5g73jTlPaO.pVha', 'supervisor', 1, 0, NULL);
 
 --
 -- Indexes for dumped tables
@@ -286,19 +276,19 @@ ALTER TABLE `kategori_keluhan`
 -- AUTO_INCREMENT untuk tabel `keluhan`
 --
 ALTER TABLE `keluhan`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT untuk tabel `keluhan_log`
 --
 ALTER TABLE `keluhan_log`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT untuk tabel `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT untuk tabel `password_resets`
@@ -316,7 +306,7 @@ ALTER TABLE `pelanggan`
 -- AUTO_INCREMENT untuk tabel `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Ketidakleluasaan untuk tabel pelimpahan (Dumped Tables)
