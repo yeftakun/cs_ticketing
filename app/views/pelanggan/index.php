@@ -47,6 +47,9 @@ ob_start();
 
 <div class="card">
     <div class="card-body">
+        <?php if (!empty($_GET['info'])): ?>
+            <div class="alert alert-success"><?= htmlspecialchars($_GET['info']) ?></div>
+        <?php endif; ?>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead>
@@ -68,10 +71,15 @@ ob_start();
                             <td><?= htmlspecialchars($row['kota'] ?? '-') ?></td>
                             <td><span class="fw-semibold"><?= (int)($row['jumlah_keluhan'] ?? 0) ?></span> keluhan</td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a class="btn btn-outline-secondary" href="?page=keluhan&pelanggan=<?= (int)$row['id'] ?>">Keluhan</a>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <a class="btn btn-outline-secondary btn-sm" href="?page=keluhan&pelanggan=<?= (int)$row['id'] ?>">Keluhan</a>
                                     <?php if (($currentUser['role'] ?? '') !== 'agent'): ?>
-                                        <a class="btn btn-outline-danger" href="?page=pelanggan-form&id=<?= (int)$row['id'] ?>">Edit</a>
+                                        <a class="btn btn-outline-danger btn-sm" href="?page=pelanggan-form&id=<?= (int)$row['id'] ?>">Edit</a>
+                                        <form class="d-inline" method="post" action="?page=pelanggan" onsubmit="return confirm('Hapus pelanggan ini? Data akan dipindahkan ke arsip.');">
+                                            <input type="hidden" name="action" value="delete-soft">
+                                            <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                                            <button class="btn btn-outline-warning btn-sm" type="submit">Hapus</button>
+                                        </form>
                                     <?php endif; ?>
                                 </div>
                             </td>

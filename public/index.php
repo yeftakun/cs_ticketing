@@ -75,7 +75,7 @@ function notifyRoles(PDO $db, array $roles, string $title, string $message = '',
     ensureNotificationsTable($db);
     try {
         $placeholders = implode(',', array_fill(0, count($roles), '?'));
-        $sql = "SELECT id FROM users WHERE role IN ($placeholders) AND is_active = 1";
+        $sql = "SELECT id FROM users WHERE role IN ($placeholders) AND is_active = 1 AND deleted_at IS NULL";
         $stmt = $db->prepare($sql);
         foreach ($roles as $i => $role) {
             $stmt->bindValue($i + 1, $role);
@@ -108,6 +108,260 @@ function generateTicketCode(PDO $db): string
     return $code;
 }
 
+function cleanupEntityTable(string $entity): ?string
+{
+    $map = [
+        'keluhan' => 'keluhan',
+        'pelanggan' => 'pelanggan',
+        'kategori' => 'kategori_keluhan',
+        'user' => 'users',
+        'keluhan_log' => 'keluhan_log',
+    ];
+    return $map[$entity] ?? null;
+}
+
+function softDeleteRecord(PDO $db, string $entity, int $id): bool
+{
+    $table = cleanupEntityTable($entity);
+    if (!$table || $id <= 0) {
+        return false;
+    }
+    $sql = "UPDATE {$table} SET deleted_at = NOW() WHERE id = :id AND deleted_at IS NULL";
+    $stmt = $db->prepare($sql);
+    return $stmt->execute([':id' => $id]);
+}
+
+function restoreRecord(PDO $db, string $entity, int $id): bool
+{
+    $table = cleanupEntityTable($entity);
+    if (!$table || $id <= 0) {
+        return false;
+    }
+    $sql = "UPDATE {$table} SET deleted_at = NULL WHERE id = :id";
+    $stmt = $db->prepare($sql);
+    return $stmt->execute([':id' => $id]);
+}
+
+function keluhanAttachmentStats(int $keluhanId): array
+{
+    $dir = __DIR__ . '/uploads/keluhan/' . $keluhanId;
+    if (!is_dir($dir)) {
+        return ['count' => 0, 'paths' => []];
+    }
+    $files = 0;
+    $iter = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($iter as $item) {
+        if ($item->isFile()) {
+            $files++;
+        }
+    }
+    return ['count' => $files, 'paths' => [$dir]];
+}
+
+function deleteDirectories(array $paths): void
+{
+    foreach ($paths as $dir) {
+        if (!is_dir($dir)) {
+            continue;
+        }
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                @unlink($item->getPathname());
+            }
+        }
+        @rmdir($dir);
+    }
+}
+
+function cascadePreview(PDO $db, string $entity, int $id): array
+{
+    $warnings = [];
+    $keluhanIds = [];
+    $attachmentDirs = [];
+    $attachmentCount = 0;
+
+    if ($entity === 'keluhan') {
+        $keluhanIds = [$id];
+        $logStmt = $db->prepare("SELECT COUNT(*) FROM keluhan_log WHERE keluhan_id = :id");
+        $logStmt->execute([':id' => $id]);
+        $logCount = (int)$logStmt->fetchColumn();
+        $attachments = keluhanAttachmentStats($id);
+        $attachmentDirs = array_merge($attachmentDirs, $attachments['paths']);
+        $attachmentCount += (int)$attachments['count'];
+        $warnings[] = "Keluhan log: {$logCount}";
+        $warnings[] = "Lampiran: {$attachmentCount} file";
+    } elseif ($entity === 'pelanggan') {
+        $stmt = $db->prepare("SELECT id FROM keluhan WHERE pelanggan_id = :id");
+        $stmt->execute([':id' => $id]);
+        $keluhanIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    } elseif ($entity === 'kategori') {
+        $stmt = $db->prepare("SELECT id FROM keluhan WHERE kategori_id = :id");
+        $stmt->execute([':id' => $id]);
+        $keluhanIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    } elseif ($entity === 'user') {
+        $stmt = $db->prepare("SELECT id FROM keluhan WHERE created_by = :id");
+        $stmt->execute([':id' => $id]);
+        $keluhanIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $logStmt = $db->prepare("SELECT COUNT(*) FROM keluhan_log WHERE user_id = :id");
+        $logStmt->execute([':id' => $id]);
+        $logCount = (int)$logStmt->fetchColumn();
+        $warnings[] = "Log keluhan oleh user: {$logCount}";
+        $notifCount = 0;
+        $resetCount = 0;
+        try {
+            $notifStmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = :id");
+            $notifStmt->execute([':id' => $id]);
+            $notifCount = (int)$notifStmt->fetchColumn();
+        } catch (PDOException $e) {
+            $notifCount = 0;
+        }
+        try {
+            $resetStmt = $db->prepare("SELECT COUNT(*) FROM password_resets WHERE user_id = :id OR reset_by = :id");
+            $resetStmt->execute([':id' => $id]);
+            $resetCount = (int)$resetStmt->fetchColumn();
+        } catch (PDOException $e) {
+            $resetCount = 0;
+        }
+        if ($notifCount > 0) {
+            $warnings[] = "Notifikasi akan dibersihkan: {$notifCount}";
+        }
+        if ($resetCount > 0) {
+            $warnings[] = "Riwayat reset password dibersihkan: {$resetCount}";
+        }
+    }
+
+    if (!empty($keluhanIds)) {
+        $placeholders = implode(',', array_fill(0, count($keluhanIds), '?'));
+        $logCount = 0;
+        if ($placeholders !== '') {
+            $logStmt = $db->prepare("SELECT COUNT(*) FROM keluhan_log WHERE keluhan_id IN ({$placeholders})");
+            foreach ($keluhanIds as $i => $kid) {
+                $logStmt->bindValue($i + 1, $kid, PDO::PARAM_INT);
+            }
+            $logStmt->execute();
+            $logCount = (int)$logStmt->fetchColumn();
+        }
+        $warnings[] = "Keluhan terkait: " . count($keluhanIds);
+        if ($logCount > 0) {
+            $warnings[] = "Log keluhan ikut terhapus: {$logCount}";
+        }
+        foreach ($keluhanIds as $kid) {
+            $att = keluhanAttachmentStats($kid);
+            $attachmentDirs = array_merge($attachmentDirs, $att['paths']);
+            $attachmentCount += (int)$att['count'];
+        }
+        if ($attachmentCount > 0) {
+            $warnings[] = "Lampiran keluhan: {$attachmentCount} file";
+        }
+    }
+
+    return [
+        'warnings' => array_values(array_filter($warnings)),
+        'keluhan_ids' => $keluhanIds,
+        'attachment_dirs' => $attachmentDirs,
+    ];
+}
+
+function permanentDeleteEntity(PDO $db, string $entity, int $id): array
+{
+    $table = cleanupEntityTable($entity);
+    if (!$table || $id <= 0) {
+        return ['ok' => false, 'error' => 'Entity tidak dikenali.'];
+    }
+    $check = $db->prepare("SELECT deleted_at FROM {$table} WHERE id = :id");
+    $check->execute([':id' => $id]);
+    $deletedAt = $check->fetchColumn();
+    if ($deletedAt === false || $deletedAt === null) {
+        return ['ok' => false, 'error' => 'Data belum dihapus secara soft delete.'];
+    }
+    $preview = cascadePreview($db, $entity, $id);
+    $attachments = $preview['attachment_dirs'] ?? [];
+    $keluhanIds = $preview['keluhan_ids'] ?? [];
+
+    try {
+        $db->beginTransaction();
+        if ($entity === 'keluhan') {
+            $db->prepare("DELETE FROM keluhan_log WHERE keluhan_id = :id")->execute([':id' => $id]);
+            $db->prepare("DELETE FROM keluhan WHERE id = :id")->execute([':id' => $id]);
+        } elseif ($entity === 'pelanggan') {
+            if (!empty($keluhanIds)) {
+                $ph = implode(',', array_fill(0, count($keluhanIds), '?'));
+                $delLogs = $db->prepare("DELETE FROM keluhan_log WHERE keluhan_id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delLogs->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delLogs->execute();
+                $delKeluhan = $db->prepare("DELETE FROM keluhan WHERE id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delKeluhan->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delKeluhan->execute();
+            }
+            $db->prepare("DELETE FROM pelanggan WHERE id = :id")->execute([':id' => $id]);
+        } elseif ($entity === 'kategori') {
+            if (!empty($keluhanIds)) {
+                $ph = implode(',', array_fill(0, count($keluhanIds), '?'));
+                $delLogs = $db->prepare("DELETE FROM keluhan_log WHERE keluhan_id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delLogs->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delLogs->execute();
+                $delKeluhan = $db->prepare("DELETE FROM keluhan WHERE id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delKeluhan->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delKeluhan->execute();
+            }
+            $db->prepare("DELETE FROM kategori_keluhan WHERE id = :id")->execute([':id' => $id]);
+        } elseif ($entity === 'user') {
+            if (!empty($keluhanIds)) {
+                $ph = implode(',', array_fill(0, count($keluhanIds), '?'));
+                $delLogs = $db->prepare("DELETE FROM keluhan_log WHERE keluhan_id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delLogs->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delLogs->execute();
+                $delKeluhan = $db->prepare("DELETE FROM keluhan WHERE id IN ({$ph})");
+                foreach ($keluhanIds as $i => $kid) {
+                    $delKeluhan->bindValue($i + 1, $kid, PDO::PARAM_INT);
+                }
+                $delKeluhan->execute();
+            }
+            $db->prepare("UPDATE keluhan_log SET user_id = NULL WHERE user_id = :id")->execute([':id' => $id]);
+            $db->prepare("UPDATE keluhan SET created_by = CASE WHEN created_by = :id THEN NULL ELSE created_by END, updated_by = CASE WHEN updated_by = :id THEN NULL ELSE updated_by END WHERE created_by = :id OR updated_by = :id")->execute([':id' => $id]);
+            try {
+                $db->prepare("DELETE FROM notifications WHERE user_id = :id")->execute([':id' => $id]);
+            } catch (PDOException $e) {
+                // ignore missing table
+            }
+            try {
+                $db->prepare("DELETE FROM password_resets WHERE user_id = :id OR reset_by = :id")->execute([':id' => $id]);
+            } catch (PDOException $e) {
+                // ignore missing table
+            }
+            $db->prepare("DELETE FROM users WHERE id = :id")->execute([':id' => $id]);
+        }
+        $db->commit();
+    } catch (PDOException $e) {
+        $db->rollBack();
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+
+    if (!empty($attachments)) {
+        deleteDirectories($attachments);
+    }
+
+    return ['ok' => true];
+}
+
 $db = db();
 $loggedIn = isset($_SESSION['user']);
 $currentUser = $_SESSION['user'] ?? null;
@@ -136,7 +390,7 @@ if ($page === 'login') {
             $error = 'Username dan password wajib diisi.';
         } else {
             try {
-                $stmt = $db->prepare("SELECT id, nama, username, password_hash, role, must_change_password FROM users WHERE username = :username AND is_active = 1 LIMIT 1");
+                $stmt = $db->prepare("SELECT id, nama, username, password_hash, role, must_change_password FROM users WHERE username = :username AND is_active = 1 AND deleted_at IS NULL LIMIT 1");
                 $stmt->execute([':username' => $username]);
                 $user = $stmt->fetch();
 
@@ -175,7 +429,7 @@ if ($page === 'forgot-password') {
             $error = 'Username dan kontak wajib diisi.';
         } else {
             try {
-                $stmt = $db->prepare("SELECT id FROM users WHERE username = :u AND kontak = :k AND is_active = 1 LIMIT 1");
+                $stmt = $db->prepare("SELECT id FROM users WHERE username = :u AND kontak = :k AND is_active = 1 AND deleted_at IS NULL LIMIT 1");
                 $stmt->execute([':u' => $username, ':k' => $kontak]);
                 $u = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($u) {
@@ -254,7 +508,7 @@ if (($_GET['ajax'] ?? '') === 'cek_pelanggan') {
         echo json_encode(['ok' => false, 'message' => 'No HP wajib diisi']);
         exit;
     }
-    $stmt = $db->prepare("SELECT id, nama_pelanggan, no_hp, kota FROM pelanggan WHERE no_hp = :hp LIMIT 1");
+    $stmt = $db->prepare("SELECT id, nama_pelanggan, no_hp, kota FROM pelanggan WHERE no_hp = :hp AND deleted_at IS NULL LIMIT 1");
     $stmt->execute([':hp' => $noHp]);
     $pelanggan = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($pelanggan) {
@@ -273,7 +527,7 @@ $channelList = ['Call Center', 'Grapari', 'WhatsApp', 'Aplikasi', 'Live Chat', '
 switch ($page) {
     case 'profile':
         $userId = $currentUser['id'];
-        $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id = :id LIMIT 1");
+        $stmt = $db->prepare("SELECT id, nama, username, role, is_active FROM users WHERE id = :id AND deleted_at IS NULL LIMIT 1");
         $stmt->execute([':id' => $userId]);
         $userProfile = $stmt->fetch();
         if (!$userProfile) {
@@ -313,7 +567,7 @@ switch ($page) {
         ];
 
         // Base filter (tanpa tanggal) untuk konsistensi perbandingan
-        $whereBase = [];
+        $whereBase = ["t.deleted_at IS NULL"];
         $paramsBase = [];
         if (!empty($filters['kategori'])) {
             $whereBase[] = "t.kategori_id = :kategori";
@@ -402,7 +656,8 @@ switch ($page) {
         ];
 
         // Bar chart per kategori
-        $kategoriStmt = $db->prepare("SELECT k.nama_kategori AS label, COUNT(t.id) AS total FROM kategori_keluhan k LEFT JOIN keluhan t ON t.kategori_id = k.id {$whereSql} GROUP BY k.id ORDER BY total DESC");
+        $kategoriWhere = $whereSql ? $whereSql . ' AND k.deleted_at IS NULL' : 'WHERE k.deleted_at IS NULL';
+        $kategoriStmt = $db->prepare("SELECT k.nama_kategori AS label, COUNT(t.id) AS total FROM kategori_keluhan k LEFT JOIN keluhan t ON t.kategori_id = k.id {$kategoriWhere} GROUP BY k.id ORDER BY total DESC");
         foreach ($paramsAll as $k => $v) $kategoriStmt->bindValue($k, $v);
         $kategoriStmt->execute();
         $kategoriRows = $kategoriStmt->fetchAll();
@@ -443,8 +698,8 @@ switch ($page) {
         $recentStmt = $db->prepare("
             SELECT t.id, t.kode_keluhan, t.tanggal_lapor, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.status_keluhan, t.prioritas
             FROM keluhan t
-            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
-            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
+            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL
+            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id AND k.deleted_at IS NULL
             {$whereSql}
             ORDER BY t.tanggal_lapor DESC
             LIMIT 10
@@ -453,7 +708,7 @@ switch ($page) {
         $recentStmt->execute();
         $recentComplaints = $recentStmt->fetchAll();
 
-        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
+        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan WHERE deleted_at IS NULL ORDER BY nama_kategori")->fetchAll();
         require __DIR__ . '/../app/views/dashboard/index.php';
         break;
 
@@ -466,9 +721,12 @@ switch ($page) {
             $catatan = trim($_POST['catatan'] ?? '');
             $kelInfo = null;
             if ($id > 0) {
-                $infoStmt = $db->prepare("SELECT kode_keluhan, created_by FROM keluhan WHERE id = :id LIMIT 1");
+                $infoStmt = $db->prepare("SELECT kode_keluhan, created_by FROM keluhan WHERE id = :id AND deleted_at IS NULL LIMIT 1");
                 $infoStmt->execute([':id' => $id]);
                 $kelInfo = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            }
+            if ($id > 0 && !$kelInfo) {
+                $error = 'Keluhan tidak ditemukan atau sudah dihapus.';
             }
             if ($currentUser['role'] === 'agent' && $id > 0) {
                 if ($kelInfo && (int)$kelInfo['created_by'] !== (int)$currentUser['id']) {
@@ -496,7 +754,7 @@ switch ($page) {
                             tanggal_update_terakhir = :tgl,
                             tanggal_selesai = :selesai,
                             updated_by = :user_id
-                        WHERE id = :id
+                        WHERE id = :id AND deleted_at IS NULL
                     ");
                     $upd->execute([
                         ':status' => $statusBaru,
@@ -528,7 +786,7 @@ switch ($page) {
             $kelList = [];
             if ($currentUser['role'] === 'agent' && !empty($idsInt)) {
                 $ph = implode(',', array_fill(0, count($idsInt), '?'));
-                $chk = $db->prepare("SELECT COUNT(*) FROM keluhan WHERE id IN ($ph) AND created_by = ?");
+                $chk = $db->prepare("SELECT COUNT(*) FROM keluhan WHERE id IN ($ph) AND created_by = ? AND deleted_at IS NULL");
                 $bindIdx = 1;
                 foreach ($idsInt as $val) {
                     $chk->bindValue($bindIdx, $val, PDO::PARAM_INT);
@@ -545,63 +803,79 @@ switch ($page) {
                 try {
                     $db->beginTransaction();
                     $now = date('Y-m-d H:i:s');
-                    $infoStmt = $db->prepare("SELECT id, kode_keluhan, created_by FROM keluhan WHERE id IN (" . implode(',', array_fill(0, count($idsInt), '?')) . ")");
+                    $infoStmt = $db->prepare("SELECT id, kode_keluhan, created_by FROM keluhan WHERE id IN (" . implode(',', array_fill(0, count($idsInt), '?')) . ") AND deleted_at IS NULL");
                     foreach ($idsInt as $i => $val) {
                         $infoStmt->bindValue($i + 1, $val, PDO::PARAM_INT);
                     }
                     $infoStmt->execute();
                     $kelList = $infoStmt->fetchAll(PDO::FETCH_ASSOC);
-                    // Insert log per keluhan
-                    $insLog = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
-                    foreach ($idsInt as $keluhanId) {
-                        $insLog->execute([
-                            ':keluhan_id' => $keluhanId,
-                            ':status' => $statusBaru,
-                            ':catatan' => $catatan,
-                            ':tgl' => $now,
-                            ':user_id' => $currentUser['id'],
-                        ]);
-                    }
-                    // Update status secara bulk
-                    $selesai = in_array($statusBaru, ['Solved', 'Closed'], true) ? $now : null;
-                    $idPlaceholders = [];
-                    $bindParams = [
-                        ':status' => $statusBaru,
-                        ':tgl' => $now,
-                        ':selesai' => $selesai,
-                        ':user_id' => $currentUser['id'],
-                    ];
-                    foreach ($idsInt as $idx => $keluhanId) {
-                        $ph = ':id' . $idx;
-                        $idPlaceholders[] = $ph;
-                        $bindParams[$ph] = $keluhanId;
-                    }
-                    $updSql = "
-                        UPDATE keluhan
-                        SET status_keluhan = :status,
-                            tanggal_update_terakhir = :tgl,
-                            tanggal_selesai = :selesai,
-                            updated_by = :user_id
-                        WHERE id IN (" . implode(',', $idPlaceholders) . ")
-                    ";
-                    $upd = $db->prepare($updSql);
-                    foreach ($bindParams as $k => $v) {
-                        $upd->bindValue($k, $v);
-                    }
-                    $upd->execute();
-                    foreach ($kelList as $row) {
-                        if ((int)$row['created_by'] !== (int)$currentUser['id']) {
-                            addNotification($db, (int)$row['created_by'], 'Status tiket ' . $row['kode_keluhan'], 'Diubah menjadi ' . $statusBaru);
+                    if (count($kelList) !== count($idsInt)) {
+                        $db->rollBack();
+                        $error = 'Sebagian tiket tidak ditemukan atau sudah dihapus.';
+                    } else {
+                        // Insert log per keluhan
+                        $insLog = $db->prepare("INSERT INTO keluhan_log (keluhan_id, status_log, catatan, tanggal_log, user_id) VALUES (:keluhan_id, :status, :catatan, :tgl, :user_id)");
+                        foreach ($idsInt as $keluhanId) {
+                            $insLog->execute([
+                                ':keluhan_id' => $keluhanId,
+                                ':status' => $statusBaru,
+                                ':catatan' => $catatan,
+                                ':tgl' => $now,
+                                ':user_id' => $currentUser['id'],
+                            ]);
                         }
+                        // Update status secara bulk
+                        $selesai = in_array($statusBaru, ['Solved', 'Closed'], true) ? $now : null;
+                        $idPlaceholders = [];
+                        $bindParams = [
+                            ':status' => $statusBaru,
+                            ':tgl' => $now,
+                            ':selesai' => $selesai,
+                            ':user_id' => $currentUser['id'],
+                        ];
+                        foreach ($idsInt as $idx => $keluhanId) {
+                            $ph = ':id' . $idx;
+                            $idPlaceholders[] = $ph;
+                            $bindParams[$ph] = $keluhanId;
+                        }
+                        $updSql = "
+                            UPDATE keluhan
+                            SET status_keluhan = :status,
+                                tanggal_update_terakhir = :tgl,
+                                tanggal_selesai = :selesai,
+                                updated_by = :user_id
+                            WHERE deleted_at IS NULL AND id IN (" . implode(',', $idPlaceholders) . ")
+                        ";
+                        $upd = $db->prepare($updSql);
+                        foreach ($bindParams as $k => $v) {
+                            $upd->bindValue($k, $v);
+                        }
+                        $upd->execute();
+                        foreach ($kelList as $row) {
+                            if ((int)$row['created_by'] !== (int)$currentUser['id']) {
+                                addNotification($db, (int)$row['created_by'], 'Status tiket ' . $row['kode_keluhan'], 'Diubah menjadi ' . $statusBaru);
+                            }
+                        }
+                        $db->commit();
+                        redirect('?page=keluhan&info=Bulk%20status%20berhasil%20diperbarui');
                     }
-                    $db->commit();
-                    redirect('?page=keluhan&info=Bulk%20status%20berhasil%20diperbarui');
                 } catch (PDOException $e) {
                     $db->rollBack();
                     $error = 'Gagal bulk update status.';
                 }
             } else {
                 $error = 'Pilih tiket dan isi status + catatan.';
+            }
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete-soft') {
+            if (!in_array($currentUser['role'], ['admin', 'supervisor'], true)) {
+                forbidden('Tidak boleh menghapus keluhan.');
+            }
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                softDeleteRecord($db, 'keluhan', $id);
+                redirect('?page=keluhan&info=Keluhan%20dipindahkan%20ke%20arsip');
             }
         }
 
@@ -625,9 +899,9 @@ switch ($page) {
             'kategori' => 'k.nama_kategori'
         ];
         $sortSql = $allowedSort[$sort] ?? 't.tanggal_lapor';
-        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
+        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan WHERE deleted_at IS NULL ORDER BY nama_kategori")->fetchAll();
 
-        $where = [];
+        $where = ["t.deleted_at IS NULL"];
         $params = [];
         if ($filters['q'] !== '') {
             $where[] = "(t.kode_keluhan LIKE :q_kode OR p.nama_pelanggan LIKE :q_nama OR p.no_hp LIKE :q_hp)";
@@ -672,9 +946,9 @@ switch ($page) {
             $exportSql = "
                 SELECT t.tanggal_lapor, t.kode_keluhan, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.channel, t.status_keluhan, t.prioritas, u.nama AS petugas
                 FROM keluhan t
-                LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
-                LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
-                LEFT JOIN users u ON u.id = t.updated_by
+                LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL
+                LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id AND k.deleted_at IS NULL
+                LEFT JOIN users u ON u.id = t.updated_by AND u.deleted_at IS NULL
                 {$whereSql}
                 ORDER BY {$sortSql} {$dir}
             ";
@@ -799,7 +1073,7 @@ switch ($page) {
         $perPage = 10;
         $offset = ($pageNum - 1) * $perPage;
 
-        $countStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t LEFT JOIN pelanggan p ON p.id = t.pelanggan_id {$whereSql}");
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM keluhan t LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL {$whereSql}");
         $countStmt->execute($params);
         $totalRows = (int)$countStmt->fetchColumn();
         $totalPages = max(1, (int)ceil($totalRows / $perPage));
@@ -807,9 +1081,9 @@ switch ($page) {
         $sql = "
             SELECT t.id, t.tanggal_lapor, t.kode_keluhan, p.nama_pelanggan, p.no_hp, k.nama_kategori, t.channel, t.status_keluhan, t.prioritas, u.nama AS petugas
             FROM keluhan t
-            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
-            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
-            LEFT JOIN users u ON u.id = t.updated_by
+            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL
+            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id AND k.deleted_at IS NULL
+            LEFT JOIN users u ON u.id = t.updated_by AND u.deleted_at IS NULL
             {$whereSql}
             ORDER BY {$sortSql} {$dir}
             LIMIT :limit OFFSET :offset
@@ -828,7 +1102,7 @@ switch ($page) {
 
     case 'keluhan-create':
         requireRole(['admin', 'supervisor', 'agent'], $currentUser);
-        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
+        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan WHERE deleted_at IS NULL ORDER BY nama_kategori")->fetchAll();
         $errors = [];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -849,7 +1123,7 @@ switch ($page) {
             if (empty($errors)) {
                 try {
                     $db->beginTransaction();
-                    $stmt = $db->prepare("SELECT id, nama_pelanggan, kota FROM pelanggan WHERE no_hp = :no_hp LIMIT 1");
+                    $stmt = $db->prepare("SELECT id, nama_pelanggan, kota FROM pelanggan WHERE no_hp = :no_hp AND deleted_at IS NULL LIMIT 1");
                     $stmt->execute([':no_hp' => $no_hp]);
                     $pelanggan = $stmt->fetch();
                     if ($pelanggan) {
@@ -909,9 +1183,9 @@ switch ($page) {
         $stmt = $db->prepare("
             SELECT t.*, p.nama_pelanggan, p.no_hp, p.kota, k.nama_kategori
             FROM keluhan t
-            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
-            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
-            WHERE t.id = :id
+            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL
+            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id AND k.deleted_at IS NULL
+            WHERE t.id = :id AND t.deleted_at IS NULL
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
@@ -921,7 +1195,7 @@ switch ($page) {
             forbidden('Tidak boleh mengedit keluhan milik user lain.');
         }
 
-        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan ORDER BY nama_kategori")->fetchAll();
+        $kategoriList = $db->query("SELECT id, nama_kategori FROM kategori_keluhan WHERE deleted_at IS NULL ORDER BY nama_kategori")->fetchAll();
         $errors = [];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -945,7 +1219,7 @@ switch ($page) {
                         deskripsi_keluhan = :deskripsi,
                         tanggal_update_terakhir = :tgl,
                         updated_by = :user_id
-                    WHERE id = :id
+                    WHERE id = :id AND deleted_at IS NULL
                 ");
                 $upd->execute([
                     ':kategori_id' => $kategori_id,
@@ -977,9 +1251,9 @@ switch ($page) {
         $stmt = $db->prepare("
             SELECT t.*, p.nama_pelanggan, p.no_hp, p.kota, k.nama_kategori
             FROM keluhan t
-            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
-            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id
-            WHERE t.id = :id
+            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id AND p.deleted_at IS NULL
+            LEFT JOIN kategori_keluhan k ON k.id = t.kategori_id AND k.deleted_at IS NULL
+            WHERE t.id = :id AND t.deleted_at IS NULL
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
@@ -1019,7 +1293,7 @@ switch ($page) {
                             tanggal_update_terakhir = :tgl,
                             tanggal_selesai = :selesai,
                             updated_by = :user_id
-                        WHERE id = :id
+                        WHERE id = :id AND deleted_at IS NULL
                     ");
                     $upd->execute([
                         ':status' => $statusBaru,
@@ -1058,7 +1332,7 @@ switch ($page) {
             SELECT l.*, u.nama AS user_nama
             FROM keluhan_log l
             LEFT JOIN users u ON u.id = l.user_id
-            WHERE l.keluhan_id = :id
+            WHERE l.keluhan_id = :id AND l.deleted_at IS NULL
             ORDER BY l.tanggal_log DESC
         ");
         $logsStmt->execute([':id' => $id]);
@@ -1107,11 +1381,21 @@ switch ($page) {
 
     case 'pelanggan':
         requireRole(['admin', 'supervisor', 'agent'], $currentUser);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete-soft') {
+            if (!in_array($currentUser['role'], ['admin', 'supervisor'], true)) {
+                forbidden('Tidak boleh menghapus pelanggan.');
+            }
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                softDeleteRecord($db, 'pelanggan', $id);
+                redirect('?page=pelanggan&info=Pelanggan%20dipindahkan%20ke%20arsip');
+            }
+        }
         $filters = [
             'q' => trim($_GET['q'] ?? ''),
             'kota' => trim($_GET['kota'] ?? ''),
         ];
-        $where = [];
+        $where = ["p.deleted_at IS NULL"];
         $params = [];
         if ($filters['q'] !== '') {
             $where[] = "(p.nama_pelanggan LIKE :q_nama OR p.no_hp LIKE :q_hp OR p.kota LIKE :q_kota)";
@@ -1128,7 +1412,7 @@ switch ($page) {
         $stmt = $db->prepare("
             SELECT p.*, COUNT(k.id) AS jumlah_keluhan
             FROM pelanggan p
-            LEFT JOIN keluhan k ON k.pelanggan_id = p.id
+            LEFT JOIN keluhan k ON k.pelanggan_id = p.id AND k.deleted_at IS NULL
             {$whereSql}
             GROUP BY p.id
             ORDER BY p.nama_pelanggan ASC
@@ -1146,7 +1430,7 @@ switch ($page) {
         $errors = [];
 
         if ($id) {
-            $stmt = $db->prepare("SELECT * FROM pelanggan WHERE id = :id LIMIT 1");
+            $stmt = $db->prepare("SELECT * FROM pelanggan WHERE id = :id AND deleted_at IS NULL LIMIT 1");
             $stmt->execute([':id' => $id]);
             $row = $stmt->fetch();
             if ($row) {
@@ -1190,23 +1474,32 @@ switch ($page) {
             if (($currentUser['role'] ?? '') !== 'admin') {
                 forbidden('Hanya admin yang boleh mengubah kategori.');
             }
-            $id = (int)($_POST['id'] ?? 0);
-            $nama = trim($_POST['nama'] ?? '');
-            $deskripsi = trim($_POST['deskripsi'] ?? '');
-            if ($nama === '') {
-                $errors[] = 'Nama kategori wajib diisi.';
-            } else {
+            $action = $_POST['action'] ?? '';
+            if ($action === 'delete-soft') {
+                $id = (int)($_POST['id'] ?? 0);
                 if ($id > 0) {
-                    $upd = $db->prepare("UPDATE kategori_keluhan SET nama_kategori = :nama, deskripsi = :deskripsi WHERE id = :id");
-                    $upd->execute([':nama' => $nama, ':deskripsi' => $deskripsi ?: null, ':id' => $id]);
-                } else {
-                    $ins = $db->prepare("INSERT INTO kategori_keluhan (nama_kategori, deskripsi) VALUES (:nama, :deskripsi)");
-                    $ins->execute([':nama' => $nama, ':deskripsi' => $deskripsi ?: null]);
+                    softDeleteRecord($db, 'kategori', $id);
                 }
                 redirect('?page=admin-kategori');
+            } else {
+                $id = (int)($_POST['id'] ?? 0);
+                $nama = trim($_POST['nama'] ?? '');
+                $deskripsi = trim($_POST['deskripsi'] ?? '');
+                if ($nama === '') {
+                    $errors[] = 'Nama kategori wajib diisi.';
+                } else {
+                    if ($id > 0) {
+                        $upd = $db->prepare("UPDATE kategori_keluhan SET nama_kategori = :nama, deskripsi = :deskripsi WHERE id = :id AND deleted_at IS NULL");
+                        $upd->execute([':nama' => $nama, ':deskripsi' => $deskripsi ?: null, ':id' => $id]);
+                    } else {
+                        $ins = $db->prepare("INSERT INTO kategori_keluhan (nama_kategori, deskripsi) VALUES (:nama, :deskripsi)");
+                        $ins->execute([':nama' => $nama, ':deskripsi' => $deskripsi ?: null]);
+                    }
+                    redirect('?page=admin-kategori');
+                }
             }
         }
-        $kategori = $db->query("SELECT id, nama_kategori, deskripsi, (SELECT COUNT(*) FROM keluhan t WHERE t.kategori_id = k.id) AS jumlah FROM kategori_keluhan k ORDER BY nama_kategori")->fetchAll();
+        $kategori = $db->query("SELECT id, nama_kategori, deskripsi, (SELECT COUNT(*) FROM keluhan t WHERE t.kategori_id = k.id AND t.deleted_at IS NULL) AS jumlah FROM kategori_keluhan k WHERE k.deleted_at IS NULL ORDER BY nama_kategori")->fetchAll();
         $editKategori = null;
         if (isset($_GET['id'])) {
             $idEdit = (int)$_GET['id'];
@@ -1226,7 +1519,15 @@ switch ($page) {
         $resetInfo = null;
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $action = $_POST['action'] ?? '';
-            if ($action === 'create') {
+            if ($action === 'delete-soft') {
+                $id = (int)($_POST['id'] ?? 0);
+                if ($id === (int)$currentUser['id']) {
+                    $errors[] = 'Tidak dapat menghapus user yang sedang login.';
+                } elseif ($id > 0) {
+                    softDeleteRecord($db, 'user', $id);
+                    redirect('?page=admin-users');
+                }
+            } elseif ($action === 'create') {
                 $nama = trim($_POST['nama'] ?? '');
                 $username = trim($_POST['username'] ?? '');
                 $password = $_POST['password'] ?? '';
@@ -1237,7 +1538,7 @@ switch ($page) {
                 } elseif (!in_array($role, ['agent', 'supervisor', 'admin'], true)) {
                     $errors[] = 'Role tidak valid.';
                 } else {
-                    $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :u");
+                    $stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :u AND deleted_at IS NULL");
                     $stmt->execute([':u' => $username]);
                     if ($stmt->fetchColumn() > 0) {
                         $errors[] = 'Username sudah digunakan.';
@@ -1250,7 +1551,7 @@ switch ($page) {
                 }
             } elseif ($action === 'toggle') {
                 $id = (int)($_POST['id'] ?? 0);
-                $stmt = $db->prepare("UPDATE users SET is_active = 1 - is_active WHERE id = :id");
+                $stmt = $db->prepare("UPDATE users SET is_active = 1 - is_active WHERE id = :id AND deleted_at IS NULL");
                 $stmt->execute([':id' => $id]);
                 redirect('?page=admin-users');
             } elseif ($action === 'reset') {
@@ -1261,7 +1562,7 @@ switch ($page) {
                 } else {
                     $tempPass = generateTempPassword();
                     $hash = password_hash($tempPass, PASSWORD_BCRYPT);
-                    $upd = $db->prepare("UPDATE users SET password_hash = :pwd, must_change_password = 1 WHERE id = :id");
+                    $upd = $db->prepare("UPDATE users SET password_hash = :pwd, must_change_password = 1 WHERE id = :id AND deleted_at IS NULL");
                     $upd->execute([':pwd' => $hash, ':id' => $id]);
                     try {
                         if ($reqId > 0) {
@@ -1278,17 +1579,96 @@ switch ($page) {
                 }
             }
         }
-        $stmt = $db->prepare("SELECT id, nama, username, kontak, role, is_active FROM users WHERE id <> :me ORDER BY nama");
+        $stmt = $db->prepare("SELECT id, nama, username, kontak, role, is_active FROM users WHERE id <> :me AND deleted_at IS NULL ORDER BY nama");
         $stmt->execute([':me' => $currentUser['id']]);
         $users = $stmt->fetchAll();
         $pendingResets = [];
         try {
-            $q = $db->query("SELECT pr.id, pr.user_id, pr.created_at, u.nama, u.username, u.role FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE (pr.temp_password_hash IS NULL OR pr.temp_password_hash = '') AND pr.used_at IS NULL ORDER BY pr.created_at DESC");
+            $q = $db->query("SELECT pr.id, pr.user_id, pr.created_at, u.nama, u.username, u.role FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE (pr.temp_password_hash IS NULL OR pr.temp_password_hash = '') AND pr.used_at IS NULL AND u.deleted_at IS NULL ORDER BY pr.created_at DESC");
             $pendingResets = $q->fetchAll();
         } catch (PDOException $e) {
             $pendingResets = [];
         }
         require __DIR__ . '/../app/views/admin/users_index.php';
+        break;
+
+    case 'cleanup':
+        requireRole(['admin'], $currentUser);
+        $cleanupError = null;
+        $cleanupInfo = null;
+        $validEntities = ['keluhan', 'pelanggan', 'kategori', 'user'];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
+            $entity = $_POST['entity'] ?? '';
+            $id = (int)($_POST['id'] ?? 0);
+            if (!in_array($entity, $validEntities, true) || $id <= 0) {
+                $cleanupError = 'Permintaan tidak valid.';
+            } elseif ($action === 'restore') {
+                if (restoreRecord($db, $entity, $id)) {
+                    $cleanupInfo = 'Data berhasil dipulihkan.';
+                } else {
+                    $cleanupError = 'Gagal memulihkan data.';
+                }
+            } elseif ($action === 'delete-permanent') {
+                $res = permanentDeleteEntity($db, $entity, $id);
+                if (!empty($res['ok'])) {
+                    $cleanupInfo = 'Data berhasil dihapus permanen.';
+                } else {
+                    $cleanupError = 'Gagal menghapus permanen: ' . ($res['error'] ?? 'Tidak diketahui');
+                }
+            }
+        }
+
+        $deletedKeluhan = $db->query("
+            SELECT t.id, t.kode_keluhan, t.tanggal_lapor, t.deleted_at, p.nama_pelanggan, p.no_hp, t.status_keluhan, t.prioritas,
+                (SELECT COUNT(*) FROM keluhan_log l WHERE l.keluhan_id = t.id) AS log_count
+            FROM keluhan t
+            LEFT JOIN pelanggan p ON p.id = t.pelanggan_id
+            WHERE t.deleted_at IS NOT NULL
+            ORDER BY t.deleted_at DESC
+        ")->fetchAll();
+        foreach ($deletedKeluhan as &$row) {
+            $row['warnings'] = cascadePreview($db, 'keluhan', (int)$row['id'])['warnings'] ?? [];
+        }
+        unset($row);
+
+        $deletedPelanggan = $db->query("
+            SELECT p.id, p.nama_pelanggan, p.no_hp, p.kota, p.deleted_at,
+                (SELECT COUNT(*) FROM keluhan k WHERE k.pelanggan_id = p.id) AS keluhan_count
+            FROM pelanggan p
+            WHERE p.deleted_at IS NOT NULL
+            ORDER BY p.deleted_at DESC
+        ")->fetchAll();
+        foreach ($deletedPelanggan as &$row) {
+            $row['warnings'] = cascadePreview($db, 'pelanggan', (int)$row['id'])['warnings'] ?? [];
+        }
+        unset($row);
+
+        $deletedKategori = $db->query("
+            SELECT k.id, k.nama_kategori, k.deleted_at,
+                (SELECT COUNT(*) FROM keluhan t WHERE t.kategori_id = k.id) AS keluhan_count
+            FROM kategori_keluhan k
+            WHERE k.deleted_at IS NOT NULL
+            ORDER BY k.deleted_at DESC
+        ")->fetchAll();
+        foreach ($deletedKategori as &$row) {
+            $row['warnings'] = cascadePreview($db, 'kategori', (int)$row['id'])['warnings'] ?? [];
+        }
+        unset($row);
+
+        $deletedUsers = $db->query("
+            SELECT u.id, u.nama, u.username, u.role, u.deleted_at,
+                (SELECT COUNT(*) FROM keluhan t WHERE t.created_by = u.id) AS keluhan_count
+            FROM users u
+            WHERE u.deleted_at IS NOT NULL
+            ORDER BY u.deleted_at DESC
+        ")->fetchAll();
+        foreach ($deletedUsers as &$row) {
+            $row['warnings'] = cascadePreview($db, 'user', (int)$row['id'])['warnings'] ?? [];
+        }
+        unset($row);
+
+        require __DIR__ . '/../app/views/cleanup/index.php';
         break;
 
     case 'notifications':

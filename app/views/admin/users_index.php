@@ -91,16 +91,23 @@ ob_start();
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <form class="d-inline" method="post" action="?page=admin-users">
-                                    <input type="hidden" name="action" value="toggle">
-                                    <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
-                                    <button class="btn btn-outline-secondary btn-sm" type="submit"><?= (int)$user['is_active'] === 1 ? 'Nonaktifkan' : 'Aktifkan' ?></button>
-                                </form>
-                                <form class="d-inline" method="post" action="?page=admin-users" onsubmit="return confirm('Reset password user ini?')">
-                                    <input type="hidden" name="action" value="reset">
-                                    <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
-                                    <button class="btn btn-outline-warning btn-sm" type="submit">Reset Password</button>
-                                </form>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <form class="d-inline" method="post" action="?page=admin-users">
+                                        <input type="hidden" name="action" value="toggle">
+                                        <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
+                                        <button class="btn btn-outline-secondary btn-sm" type="submit"><?= (int)$user['is_active'] === 1 ? 'Nonaktifkan' : 'Aktifkan' ?></button>
+                                    </form>
+                                    <form class="d-inline" method="post" action="?page=admin-users" onsubmit="return confirm('Reset password user ini?')">
+                                        <input type="hidden" name="action" value="reset">
+                                        <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
+                                        <button class="btn btn-outline-warning btn-sm" type="submit">Reset Password</button>
+                                    </form>
+                                    <form class="d-inline" method="post" action="?page=admin-users" onsubmit="return confirm('Hapus user ini? Data akan dipindahkan ke arsip.');">
+                                        <input type="hidden" name="action" value="delete-soft">
+                                        <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Hapus</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>

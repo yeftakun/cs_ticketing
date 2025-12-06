@@ -150,10 +150,17 @@ ob_start();
                             <td><span class="badge priority-badge <?= $row['prioritas'] ?>"><?= htmlspecialchars($row['prioritas']) ?></span></td>
                             <td><?= htmlspecialchars($row['petugas'] ?? '-') ?></td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a class="btn btn-outline-secondary" href="?page=keluhan-show&id=<?= (int)$row['id'] ?>">Detail</a>
-                                    <a class="btn btn-outline-danger" href="?page=keluhan-edit&id=<?= (int)$row['id'] ?>">Update</a>
-                                    <button class="btn btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#quickStatusModal" data-id="<?= (int)$row['id'] ?>" data-kode="<?= htmlspecialchars($row['kode_keluhan']) ?>">Status</button>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <a class="btn btn-outline-secondary btn-sm" href="?page=keluhan-show&id=<?= (int)$row['id'] ?>">Detail</a>
+                                    <a class="btn btn-outline-danger btn-sm" href="?page=keluhan-edit&id=<?= (int)$row['id'] ?>">Update</a>
+                                    <button class="btn btn-outline-warning btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#quickStatusModal" data-id="<?= (int)$row['id'] ?>" data-kode="<?= htmlspecialchars($row['kode_keluhan']) ?>">Status</button>
+                                    <?php if (in_array($currentUser['role'] ?? '', ['admin', 'supervisor'], true)): ?>
+                                        <form class="d-inline" method="post" action="?page=keluhan" onsubmit="return confirm('Hapus keluhan ini? Data akan dipindahkan ke arsip.');">
+                                            <input type="hidden" name="action" value="delete-soft">
+                                            <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                                            <button class="btn btn-outline-secondary btn-sm" type="submit">Hapus</button>
+                                        </form>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>

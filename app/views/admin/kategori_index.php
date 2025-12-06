@@ -61,19 +61,24 @@ ob_start();
                 <tbody>
                     <?php foreach ($kategori as $row): ?>
                         <tr>
-                            <td class="fw-semibold"><?= htmlspecialchars($row['nama_kategori']) ?></td>
-                            <td><?= htmlspecialchars($row['deskripsi']) ?></td>
-                            <td><span class="badge bg-light text-dark"><?= htmlspecialchars($row['jumlah']) ?></span></td>
-                            <td>
-                                <?php if ($isAdmin): ?>
-                                    <div class="btn-group btn-group-sm">
-                                        <a class="btn btn-outline-danger" href="?page=admin-kategori&id=<?= (int)$row['id'] ?>">Edit</a>
+                        <td class="fw-semibold"><?= htmlspecialchars($row['nama_kategori']) ?></td>
+                        <td><?= htmlspecialchars($row['deskripsi']) ?></td>
+                        <td><span class="badge bg-light text-dark"><?= htmlspecialchars($row['jumlah']) ?></span></td>
+                        <td>
+                            <?php if ($isAdmin): ?>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a class="btn btn-outline-danger btn-sm" href="?page=admin-kategori&id=<?= (int)$row['id'] ?>">Edit</a>
+                                        <form class="d-inline" method="post" action="?page=admin-kategori" onsubmit="return confirm('Hapus kategori ini? Keluhan terkait akan ikut dibersihkan saat pembersihan permanen.');">
+                                            <input type="hidden" name="action" value="delete-soft">
+                                            <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                                            <button class="btn btn-outline-warning btn-sm" type="submit">Hapus</button>
+                                        </form>
                                     </div>
-                                <?php else: ?>
+                            <?php else: ?>
                                     <span class="text-muted small">-</span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                     <?php endforeach; ?>
                     <?php if (empty($kategori)): ?>
                         <tr><td colspan="4" class="text-center text-muted">Belum ada kategori.</td></tr>

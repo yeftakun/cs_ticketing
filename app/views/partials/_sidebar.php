@@ -35,6 +35,11 @@ $isActive = function (string $menu) use ($activeMenu): string {
             <a class="nav-link sub-link <?= $isActive('kategori') ?>" href="?page=admin-kategori">
                 <i class="bi bi-tags-fill"></i> Kategori Keluhan
             </a>
+            <?php if (($currentUser['role'] ?? '') === 'admin'): ?>
+                <a class="nav-link sub-link <?= $isActive('cleanup') ?>" href="?page=cleanup">
+                    <i class="bi bi-trash3-fill"></i> Pembersihan Data
+                </a>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </aside>
