@@ -7,7 +7,7 @@ ob_start();
         <div class="rounded-circle bg-light mx-auto d-flex align-items-center justify-content-center mb-2" style="width:60px;height:60px;">
             <i class="bi bi-headset text-danger fs-3"></i>
         </div>
-        <h5 class="mb-1 fw-bold">Customer Complaint Dashboard</h5>
+        <h5 class="mb-1 fw-bold">Keluhan Pelanggan</h5>
         <div class="text-muted small">Login Agent / Supervisor</div>
     </div>
     <div class="card-body p-0">
