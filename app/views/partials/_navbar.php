@@ -8,7 +8,7 @@ $initials = strtoupper(substr($currentUser['name'], 0, 1) . substr(strstr($curre
             <i class="bi bi-list fs-4"></i>
         </button>
         <a class="navbar-brand d-none d-sm-block" href="#">
-            Customer Complaint Dashboard
+            Dashboard Keluhan Pelanggan
         </a>
         <div class="ms-auto d-flex align-items-center gap-3">
             <button class="btn btn-icon position-relative" type="button" data-bs-toggle="modal" data-bs-target="#notifModal" id="notif-btn">

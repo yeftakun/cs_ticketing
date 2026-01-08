@@ -1,5 +1,5 @@
 <?php
-$pageTitle = $pageTitle ?? 'Customer Complaint Dashboard';
+$pageTitle = $pageTitle ?? 'Dashboard Keluhan Pelanggan';
 $subtitle = $subtitle ?? null;
 $breadcrumbs = $breadcrumbs ?? [];
 $currentUser = $currentUser ?? ['name' => 'Ayu Rahma', 'role' => 'Supervisor'];
